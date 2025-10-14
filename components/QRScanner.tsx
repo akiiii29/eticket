@@ -194,14 +194,17 @@ export default function QRScanner() {
 
     // Check ticket status first (without marking as used)
     try {
-      const response = await fetch('/api/tickets', {
-        method: 'GET',
+      const response = await fetch('/api/check-ticket', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ ticket_id: ticketId }),
       });
 
-      const { tickets } = await response.json();
-      const ticket = tickets?.find((t: any) => t.ticket_id === ticketId);
+      const data = await response.json();
 
-      if (!ticket) {
+      if (!data.exists) {
         setResult({
           message: '❌ Invalid ticket',
           status: 'invalid',
@@ -210,13 +213,13 @@ export default function QRScanner() {
       }
 
       // If already used, show error
-      if (ticket.status === 'used') {
+      if (data.status === 'used') {
         setResult({
           message: '⚠️ Already checked in',
           status: 'already_used',
           ticket: {
-            name: ticket.name,
-            checked_in_at: ticket.checked_in_at,
+            name: data.ticket.name,
+            checked_in_at: data.ticket.checked_in_at,
           },
         });
         return;
@@ -225,10 +228,11 @@ export default function QRScanner() {
       // If valid (unused), show confirmation dialog
       setPendingTicket({
         id: ticketId,
-        name: ticket.name,
+        name: data.ticket.name,
       });
       setShowConfirmation(true);
     } catch (err) {
+      console.error('Check ticket error:', err);
       const errorResult = {
         message: '❌ Validation failed',
         status: 'error' as const,
