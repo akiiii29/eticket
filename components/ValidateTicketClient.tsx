@@ -136,7 +136,7 @@ export default function ValidateTicketClient({ ticket: initialTicket, userRole, 
               disabled={loading}
               className="w-full bg-green-600 text-white py-3 rounded-lg font-bold hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition text-lg shadow-lg"
             >
-              {loading ? 'Đang duyệt...' : '✅ Duyệt Vé Thành Công'}
+              {loading ? 'Đang duyệt...' : '✅ Duyệt Vé'}
             </button>
           </div>
         )}

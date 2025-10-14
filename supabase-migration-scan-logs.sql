@@ -7,7 +7,7 @@ create table if not exists scan_logs (
   ticket_id uuid not null references tickets(ticket_id) on delete cascade,
   scanned_by uuid not null references auth.users on delete cascade,
   status text not null default 'valid' check (status = 'valid'),
-  scanned_at timestamp default now()
+  scanned_at timestamptz default now()
 );
 
 -- Enable Row Level Security

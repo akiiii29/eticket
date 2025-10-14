@@ -5,7 +5,7 @@
 create table profiles (
   id uuid primary key references auth.users on delete cascade,
   role text check (role in ('admin', 'staff')),
-  created_at timestamp default now()
+  created_at timestamptz default now()
 );
 
 -- Create tickets table
@@ -15,8 +15,8 @@ create table tickets (
   name text not null,
   batch_id uuid not null,
   status text check (status in ('unused', 'used')) default 'unused',
-  created_at timestamp default now(),
-  checked_in_at timestamp
+  created_at timestamptz default now(),
+  checked_in_at timestamptz
 );
 
 -- Enable Row Level Security (RLS)
@@ -59,7 +59,7 @@ create table scan_logs (
   ticket_id uuid not null references tickets(ticket_id) on delete cascade,
   scanned_by uuid not null references auth.users on delete cascade,
   status text not null default 'valid' check (status = 'valid'),
-  scanned_at timestamp default now()
+  scanned_at timestamptz default now()
 );
 
 -- Enable Row Level Security

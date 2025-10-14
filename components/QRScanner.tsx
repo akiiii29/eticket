@@ -445,7 +445,7 @@ export default function QRScanner() {
                         </span>
                       </td>
                       <td className="px-4 py-3 text-sm text-gray-600">
-                        {formatTime(item.scannedAt)}
+                        {formatDateTime(item.scannedAt)}
                       </td>
                     </tr>
                   ))}
