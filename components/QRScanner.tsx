@@ -122,18 +122,16 @@ export default function QRScanner() {
 
       setScanning(true);
 
-      const controls = await codeReader.decodeFromVideoDevice(
-        backCam,
-        videoRef.current,
-        (res, err) => {
-          if (sessionRef.current !== currentSession) return;
-          if (res && !processingRef.current) {
-            processingRef.current = true;
-            onScanSuccess(res.getText());
-            stopScanning();
-          }
-        }
-      );
+       const controls = await codeReader.decodeFromVideoDevice(
+         backCam,
+         videoRef.current,
+         (res, err) => {
+           if (sessionRef.current !== currentSession) return;
+           if (res && !processingRef.current) {
+             onScanSuccess(res.getText());
+           }
+         }
+       );
 
       controlsRef.current = controls;
     } catch (err: any) {
