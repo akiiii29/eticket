@@ -30,6 +30,7 @@ export default function QRScanner() {
   const videoRef = useRef<HTMLVideoElement>(null);
   const codeReaderRef = useRef<BrowserQRCodeReader | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
+  const processingRef = useRef<boolean>(false);
   const router = useRouter();
   const supabase = createClient();
 
@@ -108,11 +109,19 @@ export default function QRScanner() {
       streamRef.current.getTracks().forEach(track => track.stop());
       streamRef.current = null;
     }
+    processingRef.current = false;
     setScanning(false);
   };
 
   const onScanSuccess = async (decodedText: string) => {
-    // Stop scanning temporarily
+    // Prevent multiple scans of the same QR code
+    if (processingRef.current) {
+      return;
+    }
+    
+    processingRef.current = true;
+    
+    // Stop scanning immediately
     stopScanning();
 
     // Extract ticket_id from URL
@@ -122,6 +131,7 @@ export default function QRScanner() {
         message: '❌ Invalid QR code format',
         status: 'invalid',
       });
+      processingRef.current = false;
       return;
     }
 
@@ -164,6 +174,8 @@ export default function QRScanner() {
       };
       setScanHistory(prev => [historyItem, ...prev]);
     }
+    
+    processingRef.current = false;
   };
 
   const handleLogout = async () => {
@@ -325,6 +337,7 @@ export default function QRScanner() {
                 <button
                   onClick={() => {
                     setResult(null);
+                    processingRef.current = false;
                     startScanning();
                   }}
                   className="w-full bg-blue-600 text-white py-3 rounded-lg font-semibold hover:bg-blue-700 transition text-lg"
