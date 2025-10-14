@@ -38,7 +38,7 @@ export default function QRScanner() {
       codeReaderRef.current = codeReader;
 
       // Get available video devices
-      const videoInputDevices = await codeReader.listVideoInputDevices();
+      const videoInputDevices = await BrowserQRCodeReader.listVideoInputDevices();
       
       if (videoInputDevices.length === 0) {
         setError('No camera found on this device');
