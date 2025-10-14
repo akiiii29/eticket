@@ -51,25 +51,14 @@ export default function ValidateTicketClient({ ticket: initialTicket, userRole, 
       const data = await response.json();
 
       if (data.status === 'valid') {
-        // Save to scan logs
-        await fetch('/api/scan-logs', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            ticket_id: ticket.ticket_id,
-            status: 'valid',
-          }),
-        });
-
+        // Validation endpoint now automatically creates scan log
         setMessage('✅ Duyệt vé thành công!');
         
-        // Update ticket state
+        // Update ticket state with the returned data
         setTicket({
           ...ticket,
           status: 'used',
-          checked_in_at: new Date().toISOString(),
+          checked_in_at: data.ticket.checked_in_at || new Date().toISOString(),
         });
       } else {
         setMessage(data.message || '❌ Duyệt vé thất bại');
