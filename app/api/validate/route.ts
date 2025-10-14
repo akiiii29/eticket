@@ -45,12 +45,15 @@ export async function POST(request: Request) {
     });
   }
 
+  // Generate a single timestamp for both checked_in_at and scanned_at
+  const checkInTime = new Date().toISOString();
+
   // Update to used
   const { data: updatedTicket, error: updateError } = await supabase
     .from('tickets')
     .update({
       status: 'used',
-      checked_in_at: new Date().toISOString(),
+      checked_in_at: checkInTime,
     })
     .eq('ticket_id', ticket_id)
     .select()
@@ -63,20 +66,23 @@ export async function POST(request: Request) {
     );
   }
 
-  // Automatically create scan log for approved ticket
-  const { error: logError } = await supabase
+  // Create scan log asynchronously (fire-and-forget for better performance)
+  // Don't await this - let it happen in the background
+  supabase
     .from('scan_logs')
     .insert({
       ticket_id: ticket_id,
       scanned_by: user.id,
       status: 'valid',
+      scanned_at: checkInTime,
+    })
+    .then(({ error: logError }) => {
+      if (logError) {
+        console.error('Failed to create scan log:', logError);
+      }
     });
 
-  if (logError) {
-    console.error('Failed to create scan log:', logError);
-    // Don't fail the request if logging fails, but log the error
-  }
-
+  // Return immediately without waiting for scan log
   return NextResponse.json({
     message: '✅ Valid ticket',
     status: 'valid',

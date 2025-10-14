@@ -195,7 +195,12 @@ export default function QRScanner() {
         return;
       }
 
-      setPendingTicket({ id: ticketId, name: data.ticket.name, scanned_at: data.ticket.checked_in_at });
+      // Capture the current time as scan time
+      setPendingTicket({ 
+        id: ticketId, 
+        name: data.ticket.name, 
+        scanned_at: new Date().toISOString() 
+      });
       setShowConfirmation(true);
     } catch (err) {
       console.error('Check ticket error:', err);
@@ -205,27 +210,30 @@ export default function QRScanner() {
 
   const handleApprove = async () => {
     if (!pendingTicket) return;
+    
+    // Close confirmation immediately for better UX
+    setShowConfirmation(false);
+    
     try {
       const res = await fetch('/api/validate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ticket_id: pendingTicket.id, scanned_at: new Date().toISOString() }),
+        body: JSON.stringify({ ticket_id: pendingTicket.id }),
       });
       const data = await res.json();
 
-      // Validation endpoint now automatically creates scan log
-      if (data.status === 'valid') {
-        // Reload scan history to show the new entry
-        await loadScanHistory();
-      }
-
+      // Show result immediately
       setResult(data);
+
+      // Reload scan history in the background (non-blocking)
+      if (data.status === 'valid') {
+        loadScanHistory(); // No await - let it load in background
+      }
     } catch {
       setResult({ message: '❌ Duyệt vé thất bại', status: 'error' });
+    } finally {
+      setPendingTicket(null);
     }
-
-    setShowConfirmation(false);
-    setPendingTicket(null);
   };
 
   const handleDeny = () => {
