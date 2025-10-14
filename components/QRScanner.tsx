@@ -31,6 +31,7 @@ export default function QRScanner() {
   const codeReaderRef = useRef<BrowserQRCodeReader | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const processingRef = useRef<boolean>(false);
+  const lastScannedTicketRef = useRef<string | null>(null);
   const router = useRouter();
   const supabase = createClient();
 
@@ -73,8 +74,9 @@ export default function QRScanner() {
       // Small delay to ensure cleanup is complete
       await new Promise(resolve => setTimeout(resolve, 100));
       
-      // Reset processing flag AFTER cleanup
+      // Reset processing flag and last scanned ticket AFTER cleanup
       processingRef.current = false;
+      lastScannedTicketRef.current = null;
 
       const codeReader = new BrowserQRCodeReader();
       codeReaderRef.current = codeReader;
@@ -156,7 +158,7 @@ export default function QRScanner() {
 
   const onScanSuccess = async (decodedText: string) => {
     // Prevent multiple scans of the same QR code
-    if (processingRef.current) {
+    if (processingRef.current || !scanning) {
       return;
     }
     
@@ -165,6 +167,9 @@ export default function QRScanner() {
 
     // Stop camera immediately to prevent more scans
     stopScanning();
+    
+    // Additional delay to ensure no pending callbacks execute
+    await new Promise(resolve => setTimeout(resolve, 50));
 
     // Extract ticket_id from URL
     const match = decodedText.match(/\/validate\/([a-f0-9-]+)/i);
@@ -177,6 +182,13 @@ export default function QRScanner() {
     }
 
     const ticketId = match[1];
+    
+    // Prevent processing the same ticket multiple times
+    if (lastScannedTicketRef.current === ticketId) {
+      return;
+    }
+    
+    lastScannedTicketRef.current = ticketId;
 
     // Validate ticket
     try {
