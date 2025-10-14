@@ -107,32 +107,42 @@ export default function QRScanner() {
         return;
       }
 
-      const backCam =
-        devices.find((d) => /back|rear|environment/i.test(d.label))?.deviceId ||
-        devices[0].deviceId;
+      // Find back camera by label or use environment facing mode
+      const backCamera = devices.find(
+        (d) => /back|rear|environment/i.test(d.label)
+      );
 
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { deviceId: backCam },
-      });
+      let selectedDeviceId: string | undefined;
+      
+      if (backCamera) {
+        selectedDeviceId = backCamera.deviceId;
+      } else if (devices.length > 1) {
+        // If we have multiple cameras, prefer the second one (usually back)
+        selectedDeviceId = devices[1].deviceId;
+      } else {
+        selectedDeviceId = devices[0].deviceId;
+      }
 
       if (!videoRef.current) return;
-      videoRef.current.srcObject = stream;
-      streamRef.current = stream;
-      await videoRef.current.play();
+
+      // Use the decoder's method to start video which handles camera better
+      const controls = await codeReader.decodeFromVideoDevice(
+        selectedDeviceId,
+        videoRef.current,
+        (res, err) => {
+          if (sessionRef.current !== currentSession) return;
+          if (res && !processingRef.current) {
+            onScanSuccess(res.getText());
+          }
+        }
+      );
+
+      // Store the stream from the video element
+      if (videoRef.current.srcObject) {
+        streamRef.current = videoRef.current.srcObject as MediaStream;
+      }
 
       setScanning(true);
-
-       const controls = await codeReader.decodeFromVideoDevice(
-         backCam,
-         videoRef.current,
-         (res, err) => {
-           if (sessionRef.current !== currentSession) return;
-           if (res && !processingRef.current) {
-             onScanSuccess(res.getText());
-           }
-         }
-       );
-
       controlsRef.current = controls;
     } catch (err: any) {
       console.error(err);
