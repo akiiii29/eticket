@@ -159,22 +159,25 @@ export default function QRScanner() {
   };
 
   const onScanSuccess = async (decodedText: string) => {
-    console.log('QR Scanned:', decodedText);
-    
-    // Prevent multiple scans of the same QR code
-    if (processingRef.current || !scanning) {
-      console.log('Blocked - processing or not scanning');
+    // IMMEDIATE check and block - no logs, no delays
+    if (processingRef.current) {
       return;
     }
     
-    // Set flag FIRST to block any subsequent callbacks
+    // Set flag IMMEDIATELY - before ANY async operations
     processingRef.current = true;
-
-    // Stop camera immediately to prevent more scans
-    stopScanning();
     
-    // Additional delay to ensure no pending callbacks execute
-    await new Promise(resolve => setTimeout(resolve, 50));
+    console.log('QR Scanned:', decodedText);
+
+    // Stop camera immediately (synchronous part)
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach(track => track.stop());
+      streamRef.current = null;
+    }
+    if (videoRef.current) {
+      videoRef.current.srcObject = null;
+    }
+    setScanning(false);
 
     // Extract ticket_id from URL
     const match = decodedText.match(/\/validate\/([a-f0-9-]+)/i);
@@ -189,14 +192,6 @@ export default function QRScanner() {
 
     const ticketId = match[1];
     console.log('Ticket ID:', ticketId);
-    
-    // Prevent processing the same ticket multiple times
-    if (lastScannedTicketRef.current === ticketId) {
-      console.log('Same ticket - skipping');
-      return;
-    }
-    
-    lastScannedTicketRef.current = ticketId;
 
     // Check ticket status first (without marking as used)
     try {
