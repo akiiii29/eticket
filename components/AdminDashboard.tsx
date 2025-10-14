@@ -147,6 +147,9 @@ export default function AdminDashboard() {
       // Generate a single batch_id for all tickets in this creation
       const batchId = crypto.randomUUID();
       
+      // Import QRCode library
+      const QRCode = (await import('qrcode')).default;
+      
       // Create multiple tickets for the same guest with same batch_id
       for (let i = 0; i < quantity; i++) {
         const response = await fetch('/api/tickets', {
@@ -165,11 +168,13 @@ export default function AdminDashboard() {
           return;
         }
 
+        // Generate QR code on frontend with correct URL
         const appUrl = "https://eticket-roan.vercel.app/";
         const url = `${appUrl}validate/${data.ticket.ticket_id}`;
+        const qr = await QRCode.toDataURL(url);
         
         createdTickets.push({
-          qrCode: data.qrCode,
+          qrCode: qr, // Use frontend-generated QR with correct URL
           qrUrl: url,
           ticket: data.ticket,
         });

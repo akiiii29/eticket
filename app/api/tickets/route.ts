@@ -53,7 +53,7 @@ export async function POST(request: Request) {
   }
 
   // Generate QR code
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+  const appUrl = 'https://eticket-roan.vercel.app';
   const qrUrl = `${appUrl}/validate/${ticketId}`;
   const qrCode = await QRCode.toDataURL(qrUrl);
 
