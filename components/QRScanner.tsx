@@ -159,8 +159,11 @@ export default function QRScanner() {
   };
 
   const onScanSuccess = async (decodedText: string) => {
+    console.log('QR Scanned:', decodedText);
+    
     // Prevent multiple scans of the same QR code
     if (processingRef.current || !scanning) {
+      console.log('Blocked - processing or not scanning');
       return;
     }
     
@@ -176,6 +179,7 @@ export default function QRScanner() {
     // Extract ticket_id from URL
     const match = decodedText.match(/\/validate\/([a-f0-9-]+)/i);
     if (!match) {
+      console.log('Invalid QR format');
       setResult({
         message: '❌ Invalid QR code format',
         status: 'invalid',
@@ -184,9 +188,11 @@ export default function QRScanner() {
     }
 
     const ticketId = match[1];
+    console.log('Ticket ID:', ticketId);
     
     // Prevent processing the same ticket multiple times
     if (lastScannedTicketRef.current === ticketId) {
+      console.log('Same ticket - skipping');
       return;
     }
     
@@ -194,6 +200,7 @@ export default function QRScanner() {
 
     // Check ticket status first (without marking as used)
     try {
+      console.log('Checking ticket...');
       const response = await fetch('/api/check-ticket', {
         method: 'POST',
         headers: {
@@ -203,8 +210,10 @@ export default function QRScanner() {
       });
 
       const data = await response.json();
+      console.log('Check ticket response:', data);
 
       if (!data.exists) {
+        console.log('Ticket not found');
         setResult({
           message: '❌ Invalid ticket',
           status: 'invalid',
@@ -214,6 +223,7 @@ export default function QRScanner() {
 
       // If already used, show error
       if (data.status === 'used') {
+        console.log('Ticket already used');
         setResult({
           message: '⚠️ Already checked in',
           status: 'already_used',
@@ -226,11 +236,13 @@ export default function QRScanner() {
       }
 
       // If valid (unused), show confirmation dialog
+      console.log('Showing confirmation dialog');
       setPendingTicket({
         id: ticketId,
         name: data.ticket.name,
       });
       setShowConfirmation(true);
+      console.log('Confirmation state set to true');
     } catch (err) {
       console.error('Check ticket error:', err);
       const errorResult = {
