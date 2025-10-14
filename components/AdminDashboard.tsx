@@ -13,19 +13,35 @@ interface Ticket {
   checked_in_at: string | null;
 }
 
+interface ScanLog {
+  id: number;
+  ticket_id: string;
+  scanned_by: string;
+  scanned_by_email: string;
+  status: string;
+  scanned_at: string;
+  tickets: {
+    name: string;
+    ticket_id: string;
+  };
+}
+
 export default function AdminDashboard() {
   const [tickets, setTickets] = useState<Ticket[]>([]);
+  const [scanLogs, setScanLogs] = useState<ScanLog[]>([]);
   const [name, setName] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [qrCode, setQrCode] = useState('');
   const [qrUrl, setQrUrl] = useState('');
   const [showModal, setShowModal] = useState(false);
+  const [showScanLogs, setShowScanLogs] = useState(false);
   const router = useRouter();
   const supabase = createClient();
 
   useEffect(() => {
     fetchTickets();
+    fetchScanLogs();
   }, []);
 
   const fetchTickets = async () => {
@@ -33,6 +49,14 @@ export default function AdminDashboard() {
     const data = await response.json();
     if (data.tickets) {
       setTickets(data.tickets);
+    }
+  };
+
+  const fetchScanLogs = async () => {
+    const response = await fetch('/api/scan-logs?type=all');
+    const data = await response.json();
+    if (data.logs) {
+      setScanLogs(data.logs);
     }
   };
 
@@ -102,12 +126,20 @@ export default function AdminDashboard() {
               <h1 className="text-3xl font-bold text-gray-800">Admin Dashboard</h1>
               <p className="text-gray-600 mt-1">Manage event tickets</p>
             </div>
-            <button
-              onClick={handleLogout}
-              className="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 transition"
-            >
-              Logout
-            </button>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setShowScanLogs(!showScanLogs)}
+                className="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 transition"
+              >
+                {showScanLogs ? 'Hide' : 'View'} Scan Logs
+              </button>
+              <button
+                onClick={handleLogout}
+                className="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 transition"
+              >
+                Logout
+              </button>
+            </div>
           </div>
         </div>
 
@@ -209,6 +241,71 @@ export default function AdminDashboard() {
             )}
           </div>
         </div>
+
+        {/* Scan Logs */}
+        {showScanLogs && (
+          <div className="bg-white rounded-lg shadow-md p-6">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-xl font-semibold text-gray-800">Scan Activity Logs</h2>
+              <button
+                onClick={fetchScanLogs}
+                className="text-sm text-blue-600 hover:text-blue-800 flex items-center gap-1"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+                Refresh
+              </button>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead className="bg-gray-50 border-b border-gray-200">
+                  <tr>
+                    <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Guest Name</th>
+                    <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Ticket ID</th>
+                    <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Scanned By</th>
+                    <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Status</th>
+                    <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Scanned At</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-200">
+                  {scanLogs.map((log) => (
+                    <tr key={log.id} className="hover:bg-gray-50">
+                      <td className="px-4 py-3 text-sm text-gray-800">{log.tickets.name}</td>
+                      <td className="px-4 py-3 text-xs font-mono text-gray-600">
+                        {log.ticket_id.substring(0, 8)}...
+                      </td>
+                      <td className="px-4 py-3 text-sm text-gray-700">{log.scanned_by_email}</td>
+                      <td className="px-4 py-3">
+                        <span
+                          className={`px-3 py-1 rounded-full text-xs font-semibold ${
+                            log.status === 'valid'
+                              ? 'bg-green-100 text-green-800'
+                              : log.status === 'already_used'
+                              ? 'bg-yellow-100 text-yellow-800'
+                              : 'bg-red-100 text-red-800'
+                          }`}
+                        >
+                          {log.status === 'valid' ? 'APPROVED' :
+                           log.status === 'already_used' ? 'ALREADY USED' :
+                           'DENIED'}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-sm text-gray-600">
+                        {new Date(log.scanned_at).toLocaleString()}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              {scanLogs.length === 0 && (
+                <div className="text-center py-8 text-gray-500">
+                  No scan logs yet
+                </div>
+              )}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* QR Code Modal */}

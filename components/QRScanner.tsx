@@ -35,10 +35,32 @@ export default function QRScanner() {
   const supabase = createClient();
 
   useEffect(() => {
+    // Load scan history for current user
+    loadScanHistory();
+    
     return () => {
       stopScanning();
     };
   }, []);
+
+  const loadScanHistory = async () => {
+    try {
+      const response = await fetch('/api/scan-logs?type=my');
+      const data = await response.json();
+      
+      if (data.logs) {
+        const history: ScanHistoryItem[] = data.logs.map((log: any) => ({
+          ticketId: log.ticket_id,
+          name: log.tickets?.name || 'Unknown',
+          status: log.status,
+          scannedAt: log.scanned_at,
+        }));
+        setScanHistory(history);
+      }
+    } catch (err) {
+      console.error('Failed to load scan history:', err);
+    }
+  };
 
   const startScanning = async () => {
     try {
@@ -109,8 +131,8 @@ export default function QRScanner() {
       streamRef.current.getTracks().forEach(track => track.stop());
       streamRef.current = null;
     }
-    processingRef.current = false;
     setScanning(false);
+    // Don't reset processing flag here - let it reset when user clicks "Scan Next"
   };
 
   const onScanSuccess = async (decodedText: string) => {
@@ -119,9 +141,10 @@ export default function QRScanner() {
       return;
     }
     
+    // Set flag FIRST to block any subsequent callbacks
     processingRef.current = true;
-    
-    // Stop scanning immediately
+
+    // Stop camera immediately to prevent more scans
     stopScanning();
 
     // Extract ticket_id from URL
@@ -131,7 +154,6 @@ export default function QRScanner() {
         message: '❌ Invalid QR code format',
         status: 'invalid',
       });
-      processingRef.current = false;
       return;
     }
 
@@ -149,6 +171,18 @@ export default function QRScanner() {
 
       const data = await response.json();
       setResult(data);
+
+      // Save scan log to database
+      await fetch('/api/scan-logs', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          ticket_id: ticketId,
+          status: data.status,
+        }),
+      });
 
       // Add to scan history
       const historyItem: ScanHistoryItem = {
@@ -174,8 +208,6 @@ export default function QRScanner() {
       };
       setScanHistory(prev => [historyItem, ...prev]);
     }
-    
-    processingRef.current = false;
   };
 
   const handleLogout = async () => {
