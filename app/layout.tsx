@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "E-Ticket Check-in System",
-  description: "Internal ticket check-in system with QR validation",
+  title: "Hệ Thống E-Ticket Check-in",
+  description: "Hệ thống check-in vé nội bộ với xác thực QR",
 };
 
 export default function RootLayout({

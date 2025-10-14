@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from 'react';
 import { BrowserQRCodeReader, IScannerControls } from '@zxing/browser';
 import { createClient } from '@/utils/supabase/client';
 import { useRouter } from 'next/navigation';
+import { formatDateTime, formatTime } from '@/utils/dateUtils';
 
 interface ValidationResult {
   message: string;
@@ -267,14 +268,14 @@ export default function QRScanner() {
         <div className="bg-white rounded-lg shadow-md p-6 mb-6">
           <div className="flex justify-between items-center">
             <div>
-              <h1 className="text-3xl font-bold text-gray-800">QR Scanner</h1>
-              <p className="text-gray-600 mt-1">Scan tickets to check in</p>
+              <h1 className="text-3xl font-bold text-gray-800">Máy Quét QR</h1>
+              <p className="text-gray-600 mt-1">Quét vé để check-in</p>
             </div>
             <button
               onClick={handleLogout}
               className="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 transition"
             >
-              Logout
+              Đăng Xuất
             </button>
           </div>
         </div>
@@ -284,9 +285,9 @@ export default function QRScanner() {
           <div className="flex flex-col items-center">
             {!scanning && (
               <div className="w-full max-w-md h-64 bg-gray-100 rounded-lg flex items-center justify-center mb-4">
-                <p className="text-gray-600">Camera inactive</p>
-              </div>
-            )}
+                  <p className="text-gray-600">Camera không hoạt động</p>
+                </div>
+              )}
 
             <video
               ref={videoRef}
@@ -308,7 +309,7 @@ export default function QRScanner() {
                   : 'bg-blue-600 hover:bg-blue-700 text-white'
               }`}
             >
-              {scanning ? 'Stop Scanning' : 'Start Scanning'}
+              {scanning ? 'Dừng Quét' : 'Bắt Đầu Quét'}
             </button>
           </div>
         </div>
@@ -329,14 +330,14 @@ export default function QRScanner() {
 
                 {/* Message */}
                 <h3 className="text-2xl font-bold text-center mb-2 text-gray-800">
-                  Confirm Check-In
+                  Xác Nhận Check-In
                 </h3>
                 <p className="text-center text-gray-600 mb-6">
-                  Do you want to approve this ticket?
+                  Bạn có muốn duyệt vé này?
                 </p>
                 <div className="bg-gray-50 rounded-lg p-4 mb-6">
                   <div className="flex justify-between items-center">
-                    <span className="text-gray-600">Guest Name:</span>
+                    <span className="text-gray-600">Tên Khách:</span>
                     <span className="font-semibold text-gray-800 text-lg">
                       {pendingTicket.name}
                     </span>
@@ -347,13 +348,13 @@ export default function QRScanner() {
                     onClick={handleApprove}
                     className="w-full bg-green-600 text-white py-4 rounded-lg font-bold hover:bg-green-700 transition text-xl shadow-lg"
                   >
-                    ✅ Approve Ticket
+                    ✅ Duyệt Vé
                   </button>
                   <button
                     onClick={handleDeny}
                     className="w-full bg-red-600 text-white py-3 rounded-lg font-semibold hover:bg-red-700 transition"
                   >
-                    ❌ Deny
+                    ❌ Từ Chối
                   </button>
                 </div>
               </div>
@@ -376,12 +377,22 @@ export default function QRScanner() {
               <div className="p-8 text-center">
                 <h3 className="text-2xl font-bold mb-2 text-gray-800">
                   {result.status === 'valid'
-                    ? 'Ticket Approved'
+                    ? 'Vé Đã Được Duyệt'
                     : result.status === 'already_used'
-                    ? 'Already Used'
-                    : 'Ticket Denied'}
+                    ? 'Đã Được Sử Dụng'
+                    : 'Vé Bị Từ Chối'}
                 </h3>
                 <p className="mb-6 text-gray-700">{result.message}</p>
+                {result.ticket && (
+                  <div className="bg-gray-50 rounded-lg p-4 mb-6 text-left">
+                    <p className="text-sm text-gray-600">Khách: <span className="font-semibold text-gray-800">{result.ticket.name}</span></p>
+                    {result.ticket.checked_in_at && (
+                      <p className="text-sm text-gray-600 mt-1">
+                        Check-in: {formatDateTime(result.ticket.checked_in_at)}
+                      </p>
+                    )}
+                  </div>
+                )}
                 <button
                   onClick={() => {
                     setResult(null);
@@ -389,7 +400,7 @@ export default function QRScanner() {
                   }}
                   className="w-full bg-blue-600 text-white py-3 rounded-lg font-semibold hover:bg-blue-700 transition text-lg"
                 >
-                  Scan Next Ticket
+                  Quét Vé Tiếp Theo
                 </button>
               </div>
             </div>
@@ -400,7 +411,7 @@ export default function QRScanner() {
         {scanHistory.length > 0 && (
           <div className="bg-white rounded-lg shadow-md p-6">
             <div className="flex justify-between items-center mb-4">
-              <h2 className="text-xl font-semibold text-gray-800">Your Scan History</h2>
+              <h2 className="text-xl font-semibold text-gray-800">Lịch Sử Quét Của Bạn</h2>
               <button
                 onClick={loadScanHistory}
                 className="text-sm text-blue-600 hover:text-blue-800 flex items-center gap-1"
@@ -408,17 +419,17 @@ export default function QRScanner() {
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                 </svg>
-                Refresh
+                Làm Mới
               </button>
             </div>
             <div className="overflow-x-auto">
               <table className="w-full">
                 <thead className="bg-gray-50 border-b border-gray-200">
                   <tr>
-                    <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Name</th>
-                    <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Ticket ID</th>
-                    <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Status</th>
-                    <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Scanned At</th>
+                    <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Tên</th>
+                    <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Mã Vé</th>
+                    <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Trạng Thái</th>
+                    <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Thời Gian</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-200">
@@ -430,11 +441,11 @@ export default function QRScanner() {
                       </td>
                       <td className="px-4 py-3">
                         <span className="px-3 py-1 rounded-full text-xs font-semibold bg-green-100 text-green-800">
-                          APPROVED
+                          ĐÃ DUYỆT
                         </span>
                       </td>
                       <td className="px-4 py-3 text-sm text-gray-600">
-                        {new Date(item.scannedAt).toLocaleTimeString()}
+                        {formatTime(item.scannedAt)}
                       </td>
                     </tr>
                   ))}

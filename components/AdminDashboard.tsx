@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { createClient } from '@/utils/supabase/client';
 import { useRouter } from 'next/navigation';
+import { formatDateTime, formatDate, formatTime } from '@/utils/dateUtils';
 
 interface Ticket {
   id: number;
@@ -177,7 +178,7 @@ export default function AdminDashboard() {
       setQuantity(1);
       fetchTickets();
     } catch (err) {
-      setError('An unexpected error occurred');
+      setError('Đã xảy ra lỗi không mong muốn');
     } finally {
       setLoading(false);
     }
@@ -190,7 +191,7 @@ export default function AdminDashboard() {
 
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text);
-    alert('Copied to clipboard!');
+    alert('Đã sao chép vào clipboard!');
   };
 
   const getFilteredTickets = (): TicketWithScan[] => {
@@ -248,8 +249,8 @@ export default function AdminDashboard() {
         <div className="bg-white rounded-lg shadow-md p-6 mb-6">
           <div className="flex justify-between items-center">
             <div>
-              <h1 className="text-3xl font-bold text-gray-800">Admin Dashboard</h1>
-              <p className="text-gray-600 mt-1">Manage event tickets</p>
+              <h1 className="text-3xl font-bold text-gray-800">Bảng Điều Khiển Quản Trị</h1>
+              <p className="text-gray-600 mt-1">Quản lý vé sự kiện</p>
             </div>
             <div className="flex gap-3">
               <button
@@ -262,7 +263,7 @@ export default function AdminDashboard() {
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 10h16M4 14h16M4 18h16" />
                 </svg>
-                {showAllTickets ? 'Hide' : 'All'} Tickets
+                {showAllTickets ? 'Ẩn' : 'Tất Cả'} Vé
               </button>
               <button
                 onClick={() => {
@@ -274,13 +275,13 @@ export default function AdminDashboard() {
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                 </svg>
-                {showScanLogs ? 'Hide' : 'View'} Scan Logs
+                {showScanLogs ? 'Ẩn' : 'Xem'} Lịch Sử Quét
               </button>
               <button
                 onClick={handleLogout}
                 className="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 transition"
               >
-                Logout
+                Đăng Xuất
               </button>
             </div>
           </div>
@@ -288,25 +289,25 @@ export default function AdminDashboard() {
 
         {/* Create Ticket Form */}
         <div className="bg-white rounded-lg shadow-md p-6 mb-6">
-          <h2 className="text-xl font-semibold mb-4 text-gray-800">Create New Tickets</h2>
+          <h2 className="text-xl font-semibold mb-4 text-gray-800">Tạo Vé Mới</h2>
           <form onSubmit={handleCreateTicket}>
             <div className="flex gap-4 mb-4">
               <div className="flex-1">
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Guest Name
+                  Tên Khách
                 </label>
                 <input
                   type="text"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  placeholder="Enter guest name"
+                  placeholder="Nhập tên khách"
                   required
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
                 />
               </div>
               <div className="w-40">
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Number of Tickets
+                  Số Lượng Vé
                 </label>
                 <input
                   type="number"
@@ -324,7 +325,7 @@ export default function AdminDashboard() {
                   disabled={loading}
                   className="bg-blue-600 text-white px-6 py-2 rounded-lg font-semibold hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition whitespace-nowrap"
                 >
-                  {loading ? 'Creating...' : `Create ${quantity} Ticket${quantity > 1 ? 's' : ''}`}
+                  {loading ? 'Đang tạo...' : `Tạo ${quantity} Vé`}
                 </button>
               </div>
             </div>
@@ -339,7 +340,7 @@ export default function AdminDashboard() {
         {/* Tickets by Guest */}
         <div className="bg-white rounded-lg shadow-md p-6">
           <div className="flex justify-between items-center mb-4">
-            <h2 className="text-xl font-semibold text-gray-800">Tickets by Guest</h2>
+            <h2 className="text-xl font-semibold text-gray-800">Vé Theo Khách</h2>
             <button
               onClick={fetchTickets}
               className="text-sm text-blue-600 hover:text-blue-800 flex items-center gap-1"
@@ -347,7 +348,7 @@ export default function AdminDashboard() {
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
               </svg>
-              Refresh
+              Làm Mới
             </button>
           </div>
           <div className="overflow-x-auto">
@@ -355,23 +356,23 @@ export default function AdminDashboard() {
               <thead className="bg-gray-50 border-b border-gray-200">
                 <tr>
                   <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700 relative" style={{ width: '250px' }}>
-                    Guest Name
+                    Tên Khách
                     <div onMouseDown={createResizableColumn} className="absolute right-0 top-0 h-full w-1 cursor-col-resize hover:bg-blue-500" />
                   </th>
                   <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700 relative" style={{ width: '120px' }}>
-                    Total
+                    Tổng
                     <div onMouseDown={createResizableColumn} className="absolute right-0 top-0 h-full w-1 cursor-col-resize hover:bg-blue-500" />
                   </th>
                   <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700 relative" style={{ width: '120px' }}>
-                    Used
+                    Đã Dùng
                     <div onMouseDown={createResizableColumn} className="absolute right-0 top-0 h-full w-1 cursor-col-resize hover:bg-blue-500" />
                   </th>
                   <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700 relative" style={{ width: '120px' }}>
-                    Unused
+                    Chưa Dùng
                     <div onMouseDown={createResizableColumn} className="absolute right-0 top-0 h-full w-1 cursor-col-resize hover:bg-blue-500" />
                   </th>
                   <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700" style={{ width: '150px' }}>
-                    Actions
+                    Thao Tác
                   </th>
                 </tr>
               </thead>
@@ -381,7 +382,7 @@ export default function AdminDashboard() {
                     <td className="px-4 py-3 text-sm font-semibold text-gray-800 overflow-hidden text-ellipsis whitespace-nowrap">
                       {batch.guestName}
                       <div className="text-xs text-gray-500 font-normal">
-                        Created: {new Date(batch.createdAt).toLocaleDateString()}
+                        Tạo: {formatDate(batch.createdAt)}
                       </div>
                     </td>
                     <td className="px-4 py-3 text-sm text-gray-700">
@@ -404,7 +405,7 @@ export default function AdminDashboard() {
                         onClick={() => getQrCodesForBatch(batch.batchId)}
                         className="bg-indigo-600 text-white px-3 py-1 rounded text-xs hover:bg-indigo-700 transition"
                       >
-                        View All QRs
+                        Xem Mã QR
                       </button>
                     </td>
                   </tr>
@@ -413,7 +414,7 @@ export default function AdminDashboard() {
             </table>
             {ticketBatches.length === 0 && (
               <div className="text-center py-8 text-gray-500">
-                No tickets created yet
+                Chưa có vé nào được tạo
               </div>
             )}
           </div>
@@ -423,43 +424,43 @@ export default function AdminDashboard() {
         {showAllTickets && (
           <div className="bg-white rounded-lg shadow-md p-6 mb-6">
             <div className="mb-6">
-              <h2 className="text-2xl font-bold text-gray-800 mb-2">All Tickets</h2>
-              <p className="text-sm text-gray-600">Search and filter all individual tickets</p>
+              <h2 className="text-2xl font-bold text-gray-800 mb-2">Tất Cả Vé</h2>
+              <p className="text-sm text-gray-600">Tìm kiếm và lọc tất cả vé</p>
             </div>
 
             {/* Search and Filters */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
               <div className="lg:col-span-2">
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Search
+                  Tìm Kiếm
                 </label>
                 <input
                   type="text"
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  placeholder="Search by name, ticket ID, or scanned by..."
+                  placeholder="Tìm theo tên, mã vé, hoặc người quét..."
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
                 />
               </div>
               
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Status
+                  Trạng Thái
                 </label>
                 <select
                   value={filterStatus}
                   onChange={(e) => setFilterStatus(e.target.value)}
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
                 >
-                  <option value="all">All Status</option>
-                  <option value="unused">Unused</option>
-                  <option value="used">Used</option>
+                  <option value="all">Tất Cả</option>
+                  <option value="unused">Chưa Dùng</option>
+                  <option value="used">Đã Dùng</option>
                 </select>
               </div>
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Created From
+                  Từ Ngày
                 </label>
                 <input
                   type="date"
@@ -471,7 +472,7 @@ export default function AdminDashboard() {
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Created To
+                  Đến Ngày
                 </label>
                 <input
                   type="date"
@@ -494,14 +495,14 @@ export default function AdminDashboard() {
                   }}
                   className="text-sm text-gray-600 hover:text-gray-800 underline"
                 >
-                  Clear all filters
+                  Xóa bộ lọc
                 </button>
               </div>
             )}
 
             {/* Results Count */}
             <div className="mb-4 text-sm text-gray-600">
-              Showing {getFilteredTickets().length} of {tickets.length} tickets
+              Hiển thị {getFilteredTickets().length} / {tickets.length} vé
             </div>
 
             {/* All Tickets Table */}
@@ -510,27 +511,27 @@ export default function AdminDashboard() {
                 <thead className="bg-gray-50 border-b border-gray-200">
                   <tr>
                     <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700 relative" style={{ width: '200px' }}>
-                      Guest Name
+                      Tên Khách
                       <div onMouseDown={createResizableColumn} className="absolute right-0 top-0 h-full w-1 cursor-col-resize hover:bg-blue-500" />
                     </th>
                     <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700 relative" style={{ width: '180px' }}>
-                      Ticket ID
+                      Mã Vé
                       <div onMouseDown={createResizableColumn} className="absolute right-0 top-0 h-full w-1 cursor-col-resize hover:bg-blue-500" />
                     </th>
                     <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700 relative" style={{ width: '120px' }}>
-                      Status
+                      Trạng Thái
                       <div onMouseDown={createResizableColumn} className="absolute right-0 top-0 h-full w-1 cursor-col-resize hover:bg-blue-500" />
                     </th>
                     <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700 relative" style={{ width: '180px' }}>
-                      Scanned By
+                      Quét Bởi
                       <div onMouseDown={createResizableColumn} className="absolute right-0 top-0 h-full w-1 cursor-col-resize hover:bg-blue-500" />
                     </th>
                     <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700 relative" style={{ width: '160px' }}>
-                      Created At
+                      Ngày Tạo
                       <div onMouseDown={createResizableColumn} className="absolute right-0 top-0 h-full w-1 cursor-col-resize hover:bg-blue-500" />
                     </th>
                     <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700" style={{ width: '160px' }}>
-                      Checked In At
+                      Ngày Check-in
                     </th>
                   </tr>
                 </thead>
@@ -551,18 +552,18 @@ export default function AdminDashboard() {
                               : 'bg-green-100 text-green-800'
                           }`}
                         >
-                          {ticket.status.toUpperCase()}
+                          {ticket.status === 'used' ? 'ĐÃ DÙNG' : 'CHƯA DÙNG'}
                         </span>
                       </td>
                       <td className="px-4 py-3 text-sm text-gray-600 overflow-hidden text-ellipsis whitespace-nowrap">
                         {ticket.scanned_by_email || '-'}
                       </td>
                       <td className="px-4 py-3 text-sm text-gray-600 overflow-hidden text-ellipsis whitespace-nowrap">
-                        {new Date(ticket.created_at).toLocaleString()}
+                        {formatDateTime(ticket.created_at)}
                       </td>
                       <td className="px-4 py-3 text-sm text-gray-600 overflow-hidden text-ellipsis whitespace-nowrap">
                         {ticket.checked_in_at
-                          ? new Date(ticket.checked_in_at).toLocaleString()
+                          ? formatDateTime(ticket.checked_in_at)
                           : '-'}
                       </td>
                     </tr>
@@ -571,7 +572,7 @@ export default function AdminDashboard() {
               </table>
               {getFilteredTickets().length === 0 && (
                 <div className="text-center py-8 text-gray-500">
-                  No tickets match the filters
+                  Không có vé nào phù hợp
                 </div>
               )}
             </div>
@@ -583,8 +584,8 @@ export default function AdminDashboard() {
           <div className="bg-white rounded-lg shadow-md p-6">
             <div className="flex justify-between items-center mb-6">
               <div>
-                <h2 className="text-2xl font-bold text-gray-800">Scanned Tickets Log</h2>
-                <p className="text-sm text-gray-600 mt-1">View which staff scanned which tickets</p>
+                <h2 className="text-2xl font-bold text-gray-800">Lịch Sử Quét Vé</h2>
+                <p className="text-sm text-gray-600 mt-1">Xem nhân viên nào quét vé nào</p>
               </div>
               <button
                 onClick={fetchScanLogs}
@@ -593,22 +594,22 @@ export default function AdminDashboard() {
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                 </svg>
-                Refresh
+                Làm Mới
               </button>
             </div>
             
             {/* Summary Stats */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
               <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-                <p className="text-sm text-green-600 font-semibold">Total Approved Scans</p>
+                <p className="text-sm text-green-600 font-semibold">Tổng Lượt Quét</p>
                 <p className="text-2xl font-bold text-green-800">
                   {scanLogs.length}
                 </p>
               </div>
               <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                <p className="text-sm text-blue-600 font-semibold">Unique Tickets Scanned</p>
+                <p className="text-sm text-blue-600 font-semibold">Tổng vé</p>
                 <p className="text-2xl font-bold text-blue-800">
-                  {new Set(scanLogs.map(log => log.ticket_id)).size}
+                  {tickets.length}
                 </p>
               </div>
             </div>
@@ -617,23 +618,23 @@ export default function AdminDashboard() {
                 <thead className="bg-gray-50 border-b border-gray-200">
                   <tr>
                     <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700 relative" style={{ width: '200px' }}>
-                      Guest Name
+                      Tên Khách
                       <div onMouseDown={createResizableColumn} className="absolute right-0 top-0 h-full w-1 cursor-col-resize hover:bg-blue-500" />
                     </th>
                     <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700 relative" style={{ width: '150px' }}>
-                      Ticket ID
+                      Mã Vé
                       <div onMouseDown={createResizableColumn} className="absolute right-0 top-0 h-full w-1 cursor-col-resize hover:bg-blue-500" />
                     </th>
                     <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700 relative" style={{ width: '200px' }}>
-                      Scanned By
+                      Quét Bởi
                       <div onMouseDown={createResizableColumn} className="absolute right-0 top-0 h-full w-1 cursor-col-resize hover:bg-blue-500" />
                     </th>
                     <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700 relative" style={{ width: '120px' }}>
-                      Status
+                      Trạng Thái
                       <div onMouseDown={createResizableColumn} className="absolute right-0 top-0 h-full w-1 cursor-col-resize hover:bg-blue-500" />
                     </th>
                     <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700" style={{ width: '180px' }}>
-                      Scanned At
+                      Thời Gian Quét
                     </th>
                   </tr>
                 </thead>
@@ -647,11 +648,11 @@ export default function AdminDashboard() {
                       <td className="px-4 py-3 text-sm text-gray-700 overflow-hidden text-ellipsis whitespace-nowrap">{log.scanned_by_email}</td>
                       <td className="px-4 py-3 overflow-hidden text-ellipsis whitespace-nowrap">
                         <span className="px-3 py-1 rounded-full text-xs font-semibold bg-green-100 text-green-800">
-                          APPROVED
+                          ĐÃ DUYỆT
                         </span>
                       </td>
                       <td className="px-4 py-3 text-sm text-gray-600">
-                        {new Date(log.scanned_at).toLocaleString()}
+                        {formatDateTime(log.scanned_at)}
                       </td>
                     </tr>
                   ))}
@@ -659,7 +660,7 @@ export default function AdminDashboard() {
               </table>
               {scanLogs.length === 0 && (
                 <div className="text-center py-8 text-gray-500">
-                  No scan logs yet
+                  Chưa có lịch sử quét
                 </div>
               )}
             </div>
@@ -672,10 +673,10 @@ export default function AdminDashboard() {
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50 overflow-y-auto">
           <div className="bg-white rounded-lg p-8 max-w-4xl w-full my-8">
             <h3 className="text-2xl font-semibold mb-2 text-gray-800">
-              QR Codes for {selectedGuestQRs[0].ticket.name}
+              Mã QR cho {selectedGuestQRs[0].ticket.name}
             </h3>
             <p className="text-sm text-gray-600 mb-6">
-              Total: {selectedGuestQRs.length} ticket{selectedGuestQRs.length > 1 ? 's' : ''}
+              Tổng: {selectedGuestQRs.length} vé
             </p>
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-h-[70vh] overflow-y-auto">
@@ -688,26 +689,26 @@ export default function AdminDashboard() {
                           ? 'bg-yellow-100 text-yellow-800'
                           : 'bg-green-100 text-green-800'
                       }`}>
-                        {item.ticket.status.toUpperCase()}
+                        {item.ticket.status === 'used' ? 'ĐÃ DÙNG' : 'CHƯA DÙNG'}
                       </span>
                     </div>
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img src={item.qrCode} alt="QR Code" className="w-48 h-48 mb-3" />
                     <div className="w-full">
-                      <p className="text-xs text-gray-500 mb-1">Ticket ID:</p>
+                      <p className="text-xs text-gray-500 mb-1">Mã Vé:</p>
                       <p className="text-xs font-mono text-gray-600 mb-2 break-all">
                         {item.ticket.ticket_id}
                       </p>
                       {item.ticket.checked_in_at && (
                         <p className="text-xs text-gray-500">
-                          Checked in: {new Date(item.ticket.checked_in_at).toLocaleString()}
+                          Check-in lúc: {formatDateTime(item.ticket.checked_in_at)}
                         </p>
                       )}
                       <button
-                        onClick={() => copyToClipboard(item.qrUrl)}
+                        onClick={() => window.open(item.qrUrl, '_blank')}
                         className="mt-2 w-full bg-gray-600 text-white px-3 py-1 rounded text-xs hover:bg-gray-700 transition"
                       >
-                        Copy URL
+                        Mở vé trên trang mới
                       </button>
                     </div>
                   </div>
@@ -722,7 +723,7 @@ export default function AdminDashboard() {
               }}
               className="mt-6 w-full bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition"
             >
-              Close
+              Đóng
             </button>
           </div>
         </div>

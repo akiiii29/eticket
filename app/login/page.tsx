@@ -44,12 +44,12 @@ export default function LoginPage() {
         } else if (profile?.role === 'staff') {
           router.push('/scanner');
         } else {
-          setError('User role not found');
+          setError('Không tìm thấy vai trò người dùng');
           setLoading(false);
         }
       }
     } catch (err) {
-      setError('An unexpected error occurred');
+      setError('Đã xảy ra lỗi không mong muốn');
       setLoading(false);
     }
   };
@@ -57,13 +57,13 @@ export default function LoginPage() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100">
       <div className="bg-white p-8 rounded-lg shadow-xl w-full max-w-md">
-        <h1 className="text-3xl font-bold text-center mb-2 text-gray-800">E-Ticket System</h1>
-        <p className="text-center text-gray-600 mb-8">Internal Check-in Portal</p>
+        <h1 className="text-3xl font-bold text-center mb-2 text-gray-800">Quản Lý Vé Fes</h1>
+        <p className="text-center text-gray-600 mb-8">Staff & Admin only</p>
         
         <form onSubmit={handleLogin} className="space-y-6">
           <div>
             <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-2">
-              Email Address
+              Địa Chỉ Email
             </label>
             <input
               id="email"
@@ -78,7 +78,7 @@ export default function LoginPage() {
 
           <div>
             <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-2">
-              Password
+              Mật Khẩu
             </label>
             <input
               id="password"
@@ -102,15 +102,11 @@ export default function LoginPage() {
             disabled={loading}
             className="w-full bg-blue-600 text-white py-3 rounded-lg font-semibold hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition duration-200"
           >
-            {loading ? 'Signing in...' : 'Sign In'}
+            {loading ? 'Đang đăng nhập...' : 'Đăng Nhập'}
           </button>
         </form>
 
-        <div className="mt-6 text-center text-sm text-gray-600">
-          <p>Demo Accounts:</p>
-          <p className="mt-1">Admin: admin@example.com</p>
-          <p>Staff: staff@example.com</p>
-        </div>
+        
       </div>
     </div>
   );
