@@ -67,7 +67,13 @@ export default function QRScanner() {
       setError('');
       setResult(null);
       
-      // Reset processing flag when starting a new scan
+      // Ensure complete cleanup before starting
+      stopScanning();
+      
+      // Small delay to ensure cleanup is complete
+      await new Promise(resolve => setTimeout(resolve, 100));
+      
+      // Reset processing flag AFTER cleanup
       processingRef.current = false;
 
       const codeReader = new BrowserQRCodeReader();
@@ -115,7 +121,8 @@ export default function QRScanner() {
         await codeReader.decodeFromVideoElement(
           videoRef.current,
           (result, error) => {
-            if (result) {
+            // Double-check processing flag in callback
+            if (result && !processingRef.current) {
               onScanSuccess(result.getText());
             }
           }
