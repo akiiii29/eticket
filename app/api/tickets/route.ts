@@ -24,7 +24,7 @@ export async function POST(request: Request) {
   }
 
   const body = await request.json();
-  const { name } = body;
+  const { name, batch_id } = body;
 
   if (!name) {
     return NextResponse.json({ error: 'Name is required' }, { status: 400 });
@@ -32,6 +32,9 @@ export async function POST(request: Request) {
 
   // Generate UUID for ticket
   const ticketId = crypto.randomUUID();
+  
+  // Use provided batch_id or generate new one
+  const batchId = batch_id || crypto.randomUUID();
 
   // Insert ticket
   const { data: ticket, error } = await supabase
@@ -39,6 +42,7 @@ export async function POST(request: Request) {
     .insert({
       ticket_id: ticketId,
       name,
+      batch_id: batchId,
       status: 'unused',
     })
     .select()

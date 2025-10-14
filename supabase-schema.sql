@@ -13,6 +13,7 @@ create table tickets (
   id bigint primary key generated always as identity,
   ticket_id uuid unique not null,
   name text not null,
+  batch_id uuid not null,
   status text check (status in ('unused', 'used')) default 'unused',
   created_at timestamp default now(),
   checked_in_at timestamp
