@@ -27,6 +27,8 @@ export default function QRScanner() {
   const [result, setResult] = useState<ValidationResult | null>(null);
   const [error, setError] = useState('');
   const [scanHistory, setScanHistory] = useState<ScanHistoryItem[]>([]);
+  const [showConfirmation, setShowConfirmation] = useState(false);
+  const [pendingTicket, setPendingTicket] = useState<{ id: string; name: string } | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const codeReaderRef = useRef<BrowserQRCodeReader | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -190,20 +192,67 @@ export default function QRScanner() {
     
     lastScannedTicketRef.current = ticketId;
 
-    // Validate ticket
+    // Check ticket status first (without marking as used)
     try {
+      const response = await fetch('/api/tickets', {
+        method: 'GET',
+      });
+
+      const { tickets } = await response.json();
+      const ticket = tickets?.find((t: any) => t.ticket_id === ticketId);
+
+      if (!ticket) {
+        setResult({
+          message: '❌ Invalid ticket',
+          status: 'invalid',
+        });
+        return;
+      }
+
+      // If already used, show error
+      if (ticket.status === 'used') {
+        setResult({
+          message: '⚠️ Already checked in',
+          status: 'already_used',
+          ticket: {
+            name: ticket.name,
+            checked_in_at: ticket.checked_in_at,
+          },
+        });
+        return;
+      }
+
+      // If valid (unused), show confirmation dialog
+      setPendingTicket({
+        id: ticketId,
+        name: ticket.name,
+      });
+      setShowConfirmation(true);
+    } catch (err) {
+      const errorResult = {
+        message: '❌ Validation failed',
+        status: 'error' as const,
+      };
+      setResult(errorResult);
+    }
+  };
+
+  const handleApprove = async () => {
+    if (!pendingTicket) return;
+
+    try {
+      // Mark ticket as used
       const response = await fetch('/api/validate', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ ticket_id: ticketId }),
+        body: JSON.stringify({ ticket_id: pendingTicket.id }),
       });
 
       const data = await response.json();
-      setResult(data);
 
-      // Only save to scan logs if ticket was successfully validated (approved)
+      // Save to scan logs
       if (data.status === 'valid') {
         await fetch('/api/scan-logs', {
           method: 'POST',
@@ -211,23 +260,38 @@ export default function QRScanner() {
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
-            ticket_id: ticketId,
+            ticket_id: pendingTicket.id,
             status: data.status,
           }),
         });
 
-        // Reload scan history from database to ensure consistency
+        // Reload scan history
         await loadScanHistory();
       }
+
+      setResult(data);
     } catch (err) {
-      const errorResult = {
-        message: '❌ Validation failed',
-        status: 'error' as const,
-      };
-      setResult(errorResult);
-      
-      // Don't save errors or invalid scans to logs - only approved scans
+      setResult({
+        message: '❌ Approval failed',
+        status: 'error',
+      });
     }
+
+    setShowConfirmation(false);
+    setPendingTicket(null);
+  };
+
+  const handleDeny = () => {
+    setResult({
+      message: '❌ Ticket Denied',
+      status: 'invalid',
+      ticket: {
+        name: pendingTicket?.name || 'Unknown',
+        checked_in_at: '',
+      },
+    });
+    setShowConfirmation(false);
+    setPendingTicket(null);
   };
 
   const handleLogout = async () => {
@@ -316,6 +380,57 @@ export default function QRScanner() {
             </button>
           </div>
         </div>
+
+        {/* Confirmation Dialog */}
+        {showConfirmation && pendingTicket && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+            <div className="bg-white rounded-lg shadow-2xl max-w-md w-full border-t-8 border-blue-500">
+              <div className="p-8">
+                {/* Icon */}
+                <div className="flex justify-center mb-4">
+                  <div className="w-20 h-20 bg-blue-100 rounded-full flex items-center justify-center">
+                    <svg className="w-12 h-12 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                  </div>
+                </div>
+
+                {/* Message */}
+                <h3 className="text-2xl font-bold text-center mb-2 text-gray-800">
+                  Confirm Check-In
+                </h3>
+                
+                <p className="text-center text-gray-600 mb-6">
+                  Do you want to approve this ticket?
+                </p>
+
+                {/* Ticket Details */}
+                <div className="bg-gray-50 rounded-lg p-4 mb-6">
+                  <div className="flex justify-between items-center">
+                    <span className="text-gray-600">Guest Name:</span>
+                    <span className="font-semibold text-gray-800 text-lg">{pendingTicket.name}</span>
+                  </div>
+                </div>
+
+                {/* Buttons */}
+                <div className="space-y-3">
+                  <button
+                    onClick={handleApprove}
+                    className="w-full bg-green-600 text-white py-4 rounded-lg font-bold hover:bg-green-700 transition text-xl shadow-lg"
+                  >
+                    ✅ Approve Ticket
+                  </button>
+                  <button
+                    onClick={handleDeny}
+                    className="w-full bg-red-600 text-white py-3 rounded-lg font-semibold hover:bg-red-700 transition"
+                  >
+                    ❌ Deny
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Result Modal */}
         {result && (
