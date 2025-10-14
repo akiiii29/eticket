@@ -196,14 +196,8 @@ export default function QRScanner() {
         }),
       });
 
-      // Add to scan history
-      const historyItem: ScanHistoryItem = {
-        ticketId: ticketId,
-        name: data.ticket?.name || 'Unknown',
-        status: data.status,
-        scannedAt: new Date().toISOString(),
-      };
-      setScanHistory(prev => [historyItem, ...prev]);
+      // Reload scan history from database to ensure consistency
+      await loadScanHistory();
     } catch (err) {
       const errorResult = {
         message: '❌ Validation failed',
@@ -211,14 +205,20 @@ export default function QRScanner() {
       };
       setResult(errorResult);
       
-      // Add error to history
-      const historyItem: ScanHistoryItem = {
-        ticketId: ticketId,
-        name: 'Error',
-        status: 'error',
-        scannedAt: new Date().toISOString(),
-      };
-      setScanHistory(prev => [historyItem, ...prev]);
+      // Save error to database
+      await fetch('/api/scan-logs', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          ticket_id: ticketId,
+          status: 'error',
+        }),
+      }).catch(() => {}); // Silently fail if can't save error
+      
+      // Reload history
+      await loadScanHistory();
     }
   };
 
@@ -396,7 +396,18 @@ export default function QRScanner() {
         {/* Scan History Table */}
         {scanHistory.length > 0 && (
           <div className="bg-white rounded-lg shadow-md p-6">
-            <h2 className="text-xl font-semibold mb-4 text-gray-800">Scan History</h2>
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-xl font-semibold text-gray-800">Your Scan History</h2>
+              <button
+                onClick={loadScanHistory}
+                className="text-sm text-blue-600 hover:text-blue-800 flex items-center gap-1"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+                Refresh
+              </button>
+            </div>
             <div className="overflow-x-auto">
               <table className="w-full">
                 <thead className="bg-gray-50 border-b border-gray-200">

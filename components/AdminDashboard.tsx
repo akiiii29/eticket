@@ -128,9 +128,15 @@ export default function AdminDashboard() {
             </div>
             <div className="flex gap-3">
               <button
-                onClick={() => setShowScanLogs(!showScanLogs)}
-                className="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 transition"
+                onClick={() => {
+                  setShowScanLogs(!showScanLogs);
+                  if (!showScanLogs) fetchScanLogs();
+                }}
+                className="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 transition flex items-center gap-2"
               >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
                 {showScanLogs ? 'Hide' : 'View'} Scan Logs
               </button>
               <button
@@ -245,17 +251,42 @@ export default function AdminDashboard() {
         {/* Scan Logs */}
         {showScanLogs && (
           <div className="bg-white rounded-lg shadow-md p-6">
-            <div className="flex justify-between items-center mb-4">
-              <h2 className="text-xl font-semibold text-gray-800">Scan Activity Logs</h2>
+            <div className="flex justify-between items-center mb-6">
+              <div>
+                <h2 className="text-2xl font-bold text-gray-800">Scanned Tickets Log</h2>
+                <p className="text-sm text-gray-600 mt-1">View which staff scanned which tickets</p>
+              </div>
               <button
                 onClick={fetchScanLogs}
-                className="text-sm text-blue-600 hover:text-blue-800 flex items-center gap-1"
+                className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition flex items-center gap-2"
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                 </svg>
                 Refresh
               </button>
+            </div>
+            
+            {/* Summary Stats */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+              <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                <p className="text-sm text-green-600 font-semibold">Approved</p>
+                <p className="text-2xl font-bold text-green-800">
+                  {scanLogs.filter(log => log.status === 'valid').length}
+                </p>
+              </div>
+              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                <p className="text-sm text-yellow-600 font-semibold">Already Used</p>
+                <p className="text-2xl font-bold text-yellow-800">
+                  {scanLogs.filter(log => log.status === 'already_used').length}
+                </p>
+              </div>
+              <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+                <p className="text-sm text-red-600 font-semibold">Denied</p>
+                <p className="text-2xl font-bold text-red-800">
+                  {scanLogs.filter(log => log.status === 'invalid' || log.status === 'error').length}
+                </p>
+              </div>
             </div>
             <div className="overflow-x-auto">
               <table className="w-full">
