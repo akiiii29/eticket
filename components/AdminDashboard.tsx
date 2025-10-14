@@ -136,6 +136,10 @@ export default function AdminDashboard() {
     e.preventDefault();
     setError('');
     setLoading(true);
+    
+    // Clear old QR codes and close modal immediately to prevent showing stale data
+    setSelectedGuestQRs([]);
+    setShowModal(false);
 
     try {
       const createdTickets: Array<{qrCode: string; qrUrl: string; ticket: Ticket}> = [];
@@ -194,6 +198,40 @@ export default function AdminDashboard() {
     alert('Đã sao chép vào clipboard!');
   };
 
+  const downloadSingleQR = async (item: {qrCode: string; qrUrl: string; ticket: Ticket}, index: number) => {
+    const QRCode = (await import('qrcode')).default;
+    
+    // Generate high-resolution QR code (1024x1024)
+    const highResQR = await QRCode.toDataURL(item.qrUrl, {
+      width: 1024,
+      margin: 2,
+      color: {
+        dark: '#000000',
+        light: '#FFFFFF',
+      },
+    });
+    
+    // Create download link
+    const link = document.createElement('a');
+    link.href = highResQR;
+    link.download = `${item.ticket.name}_ve_${index + 1}_${item.ticket.ticket_id.substring(0, 8)}.png`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const downloadAllQRCodes = async () => {
+    for (let i = 0; i < selectedGuestQRs.length; i++) {
+      const item = selectedGuestQRs[i];
+      await downloadSingleQR(item, i);
+      
+      // Small delay between downloads to prevent browser blocking
+      if (i < selectedGuestQRs.length - 1) {
+        await new Promise(resolve => setTimeout(resolve, 200));
+      }
+    }
+  };
+
   const getFilteredTickets = (): TicketWithScan[] => {
     // Add scan info to tickets
     const ticketsWithScan: TicketWithScan[] = tickets.map(ticket => {
@@ -225,6 +263,10 @@ export default function AdminDashboard() {
   };
 
   const getQrCodesForBatch = async (batchId: string) => {
+    // Clear old QR codes and close modal immediately to prevent showing stale data
+    setSelectedGuestQRs([]);
+    setShowModal(false);
+    
     const appUrl = "https://eticket-roan.vercel.app/";
     const QRCode = (await import('qrcode')).default;
     
@@ -601,13 +643,13 @@ export default function AdminDashboard() {
             {/* Summary Stats */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
               <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-                <p className="text-sm text-green-600 font-semibold">Tổng Lượt Quét</p>
+                <p className="text-sm text-green-600 font-semibold">Tổng vé đã check-in</p>
                 <p className="text-2xl font-bold text-green-800">
                   {scanLogs.length}
                 </p>
               </div>
               <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                <p className="text-sm text-blue-600 font-semibold">Tổng vé</p>
+                <p className="text-sm text-blue-600 font-semibold">Tổng vé đã bán</p>
                 <p className="text-2xl font-bold text-blue-800">
                   {tickets.length}
                 </p>
@@ -672,12 +714,25 @@ export default function AdminDashboard() {
       {showModal && selectedGuestQRs.length > 0 && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50 overflow-y-auto">
           <div className="bg-white rounded-lg p-8 max-w-4xl w-full my-8">
-            <h3 className="text-2xl font-semibold mb-2 text-gray-800">
-              Mã QR cho {selectedGuestQRs[0].ticket.name}
-            </h3>
-            <p className="text-sm text-gray-600 mb-6">
-              Tổng: {selectedGuestQRs.length} vé
-            </p>
+            <div className="flex justify-between items-start mb-6">
+              <div>
+                <h3 className="text-2xl font-semibold mb-2 text-gray-800">
+                  Mã QR cho {selectedGuestQRs[0].ticket.name}
+                </h3>
+                <p className="text-sm text-gray-600">
+                  Tổng: {selectedGuestQRs.length} vé
+                </p>
+              </div>
+              <button
+                onClick={downloadAllQRCodes}
+                className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition flex items-center gap-2"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                </svg>
+                Tải Tất Cả QR
+              </button>
+            </div>
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-h-[70vh] overflow-y-auto">
               {selectedGuestQRs.map((item, index) => (
@@ -704,12 +759,23 @@ export default function AdminDashboard() {
                           Check-in lúc: {formatDateTime(item.ticket.checked_in_at)}
                         </p>
                       )}
-                      <button
-                        onClick={() => window.open(item.qrUrl, '_blank')}
-                        className="mt-2 w-full bg-gray-600 text-white px-3 py-1 rounded text-xs hover:bg-gray-700 transition"
-                      >
-                        Mở vé trên trang mới
-                      </button>
+                      <div className="flex gap-2 mt-2">
+                        <button
+                          onClick={() => downloadSingleQR(item, index)}
+                          className="flex-1 bg-green-600 text-white px-3 py-1 rounded text-xs hover:bg-green-700 transition flex items-center justify-center gap-1"
+                        >
+                          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                          </svg>
+                          Tải QR
+                        </button>
+                        <button
+                          onClick={() => window.open(item.qrUrl, '_blank')}
+                          className="flex-1 bg-gray-600 text-white px-3 py-1 rounded text-xs hover:bg-gray-700 transition"
+                        >
+                          Mở vé
+                        </button>
+                      </div>
                     </div>
                   </div>
                 </div>
