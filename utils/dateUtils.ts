@@ -1,6 +1,15 @@
 // Format date to Vietnamese timezone (GMT+7)
-export const formatDateTime = (date: string | Date): string => {
-  return new Date(date).toLocaleString('vi-VN', {
+export const formatDateTime = (date: string | Date | null | undefined): string => {
+  if (!date) return 'N/A';
+  
+  const parsedDate = new Date(date);
+  
+  // Check if date is invalid
+  if (isNaN(parsedDate.getTime())) {
+    return 'N/A';
+  }
+  
+  return parsedDate.toLocaleString('vi-VN', {
     timeZone: 'Asia/Ho_Chi_Minh',
     year: 'numeric',
     month: '2-digit',
@@ -11,8 +20,17 @@ export const formatDateTime = (date: string | Date): string => {
   });
 };
 
-export const formatDate = (date: string | Date): string => {
-  return new Date(date).toLocaleDateString('vi-VN', {
+export const formatDate = (date: string | Date | null | undefined): string => {
+  if (!date) return 'N/A';
+  
+  const parsedDate = new Date(date);
+  
+  // Check if date is invalid
+  if (isNaN(parsedDate.getTime())) {
+    return 'N/A';
+  }
+  
+  return parsedDate.toLocaleDateString('vi-VN', {
     timeZone: 'Asia/Ho_Chi_Minh',
     year: 'numeric',
     month: '2-digit',
@@ -20,8 +38,17 @@ export const formatDate = (date: string | Date): string => {
   });
 };
 
-export const formatTime = (date: string | Date): string => {
-  return new Date(date).toLocaleTimeString('vi-VN', {
+export const formatTime = (date: string | Date | null | undefined): string => {
+  if (!date) return 'N/A';
+  
+  const parsedDate = new Date(date);
+  
+  // Check if date is invalid
+  if (isNaN(parsedDate.getTime())) {
+    return 'N/A';
+  }
+  
+  return parsedDate.toLocaleTimeString('vi-VN', {
     timeZone: 'Asia/Ho_Chi_Minh',
     hour: '2-digit',
     minute: '2-digit',

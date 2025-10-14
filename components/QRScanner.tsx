@@ -213,12 +213,9 @@ export default function QRScanner() {
       });
       const data = await res.json();
 
+      // Validation endpoint now automatically creates scan log
       if (data.status === 'valid') {
-        await fetch('/api/scan-logs', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ ticket_id: pendingTicket.id, status: data.status }),
-        });
+        // Reload scan history to show the new entry
         await loadScanHistory();
       }
 

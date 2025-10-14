@@ -63,6 +63,20 @@ export async function POST(request: Request) {
     );
   }
 
+  // Automatically create scan log for approved ticket
+  const { error: logError } = await supabase
+    .from('scan_logs')
+    .insert({
+      ticket_id: ticket_id,
+      scanned_by: user.id,
+      status: 'valid',
+    });
+
+  if (logError) {
+    console.error('Failed to create scan log:', logError);
+    // Don't fail the request if logging fails, but log the error
+  }
+
   return NextResponse.json({
     message: '✅ Valid ticket',
     status: 'valid',
