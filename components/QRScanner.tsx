@@ -20,7 +20,7 @@ interface ScanHistoryItem {
   ticketId: string;
   name: string;
   status: 'valid' | 'invalid' | 'already_used' | 'error';
-  scannedAt: string;
+  scanned_at: string;
 }
 
 export default function QRScanner() {
@@ -56,7 +56,7 @@ export default function QRScanner() {
           ticketId: log.ticket_id,
           name: log.tickets?.name || 'Unknown',
           status: log.status,
-          scannedAt: log.scanned_at,
+          scanned_at: log.scanned_at,
         }));
         setScanHistory(history);
       }
@@ -445,7 +445,7 @@ export default function QRScanner() {
                         </span>
                       </td>
                       <td className="px-4 py-3 text-sm text-gray-600">
-                        {formatDateTime(item.scannedAt)}
+                        {formatDateTime(item.scanned_at)}
                       </td>
                     </tr>
                   ))}
