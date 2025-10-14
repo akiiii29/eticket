@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { Html5Qrcode } from 'html5-qrcode';
+import { BrowserQRCodeReader } from '@zxing/browser';
 import { createClient } from '@/utils/supabase/client';
 import { useRouter } from 'next/navigation';
 
@@ -18,15 +18,14 @@ export default function QRScanner() {
   const [scanning, setScanning] = useState(false);
   const [result, setResult] = useState<ValidationResult | null>(null);
   const [error, setError] = useState('');
-  const html5QrCodeRef = useRef<Html5Qrcode | null>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const codeReaderRef = useRef<BrowserQRCodeReader | null>(null);
   const router = useRouter();
   const supabase = createClient();
 
   useEffect(() => {
     return () => {
-      if (html5QrCodeRef.current) {
-        html5QrCodeRef.current.stop().catch(() => {});
-      }
+      stopScanning();
     };
   }, []);
 
@@ -35,54 +34,56 @@ export default function QRScanner() {
       setError('');
       setResult(null);
 
-      const html5QrCode = new Html5Qrcode('qr-reader');
-      html5QrCodeRef.current = html5QrCode;
+      const codeReader = new BrowserQRCodeReader();
+      codeReaderRef.current = codeReader;
 
-      const config = {
-        fps: 10,
-        qrbox: { width: 250, height: 250 },
-        aspectRatio: 1.0,
-      };
-
-      // Try environment camera first, fallback to any camera
-      try {
-        await html5QrCode.start(
-          { facingMode: 'environment' },
-          config,
-          onScanSuccess,
-          () => {}
-        );
-      } catch (err) {
-        // Fallback to any available camera
-        await html5QrCode.start(
-          { facingMode: 'user' },
-          config,
-          onScanSuccess,
-          () => {}
-        );
+      // Get available video devices
+      const videoInputDevices = await codeReader.listVideoInputDevices();
+      
+      if (videoInputDevices.length === 0) {
+        setError('No camera found on this device');
+        return;
       }
 
-      setScanning(true);
+      // Try to find back camera, otherwise use first available
+      const backCamera = videoInputDevices.find(device => 
+        device.label.toLowerCase().includes('back') || 
+        device.label.toLowerCase().includes('rear') ||
+        device.label.toLowerCase().includes('environment')
+      );
+      
+      const selectedDeviceId = backCamera?.deviceId || videoInputDevices[0].deviceId;
+
+      if (videoRef.current) {
+        await codeReader.decodeFromVideoDevice(
+          selectedDeviceId,
+          videoRef.current,
+          (result, error) => {
+            if (result) {
+              onScanSuccess(result.getText());
+            }
+            // Ignore errors - they happen when no QR code is in view
+          }
+        );
+
+        setScanning(true);
+      }
     } catch (err: any) {
-      setError(err?.message || 'Failed to start camera. Please allow camera access and ensure you are using HTTPS.');
       console.error(err);
+      setError(err?.message || 'Failed to start camera. Please allow camera access and use HTTPS.');
     }
   };
 
-  const stopScanning = async () => {
-    if (html5QrCodeRef.current) {
-      try {
-        await html5QrCodeRef.current.stop();
-        setScanning(false);
-      } catch (err) {
-        console.error(err);
-      }
+  const stopScanning = () => {
+    if (codeReaderRef.current) {
+      codeReaderRef.current.reset();
+      setScanning(false);
     }
   };
 
   const onScanSuccess = async (decodedText: string) => {
     // Stop scanning temporarily
-    await stopScanning();
+    stopScanning();
 
     // Extract ticket_id from URL
     const match = decodedText.match(/\/validate\/([a-f0-9-]+)/i);
@@ -178,14 +179,14 @@ export default function QRScanner() {
               </div>
             )}
 
-            <div
-              id="qr-reader"
-              className={`w-full max-w-md mb-4 ${scanning ? 'block' : 'hidden'}`}
-              style={{ minHeight: scanning ? '300px' : '0' }}
-            ></div>
+            <video
+              ref={videoRef}
+              className={`w-full max-w-md rounded-lg mb-4 ${scanning ? 'block' : 'hidden'}`}
+              style={{ maxHeight: '400px' }}
+            />
 
             {error && (
-              <div className="w-full mb-4 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">
+              <div className="w-full max-w-md mb-4 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">
                 {error}
               </div>
             )}
@@ -237,4 +238,3 @@ export default function QRScanner() {
     </div>
   );
 }
-
