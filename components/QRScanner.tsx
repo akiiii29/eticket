@@ -66,6 +66,9 @@ export default function QRScanner() {
     try {
       setError('');
       setResult(null);
+      
+      // Reset processing flag when starting a new scan
+      processingRef.current = false;
 
       const codeReader = new BrowserQRCodeReader();
       codeReaderRef.current = codeReader;
@@ -127,12 +130,21 @@ export default function QRScanner() {
   };
 
   const stopScanning = () => {
+    // Stop the video stream
     if (streamRef.current) {
       streamRef.current.getTracks().forEach(track => track.stop());
       streamRef.current = null;
     }
+    
+    // Clear video element source
+    if (videoRef.current) {
+      videoRef.current.srcObject = null;
+    }
+    
+    // Clear the code reader reference
+    codeReaderRef.current = null;
+    
     setScanning(false);
-    // Don't reset processing flag here - let it reset when user clicks "Scan Next"
   };
 
   const onScanSuccess = async (decodedText: string) => {
@@ -369,7 +381,7 @@ export default function QRScanner() {
                 <button
                   onClick={() => {
                     setResult(null);
-                    processingRef.current = false;
+                    // Flag will be reset in startScanning
                     startScanning();
                   }}
                   className="w-full bg-blue-600 text-white py-3 rounded-lg font-semibold hover:bg-blue-700 transition text-lg"
