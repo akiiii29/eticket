@@ -121,6 +121,12 @@ git commit -m "Add scan logs tracking with staff attribution"
 git push origin main
 ```
 
+## 📊 Important Notes
+
+- **Only approved scans are logged** - Already used, invalid, or error scans are NOT saved
+- Scan logs track successful check-ins only
+- This keeps the logs clean and focused on actual admissions
+
 ## 🔍 Querying Logs
 
 **Get all scans for a specific ticket:**

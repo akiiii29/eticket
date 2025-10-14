@@ -191,20 +191,22 @@ export default function QRScanner() {
       const data = await response.json();
       setResult(data);
 
-      // Save scan log to database
-      await fetch('/api/scan-logs', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          ticket_id: ticketId,
-          status: data.status,
-        }),
-      });
+      // Only save to scan logs if ticket was successfully validated (approved)
+      if (data.status === 'valid') {
+        await fetch('/api/scan-logs', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            ticket_id: ticketId,
+            status: data.status,
+          }),
+        });
 
-      // Reload scan history from database to ensure consistency
-      await loadScanHistory();
+        // Reload scan history from database to ensure consistency
+        await loadScanHistory();
+      }
     } catch (err) {
       const errorResult = {
         message: '❌ Validation failed',
@@ -212,20 +214,7 @@ export default function QRScanner() {
       };
       setResult(errorResult);
       
-      // Save error to database
-      await fetch('/api/scan-logs', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          ticket_id: ticketId,
-          status: 'error',
-        }),
-      }).catch(() => {}); // Silently fail if can't save error
-      
-      // Reload history
-      await loadScanHistory();
+      // Don't save errors or invalid scans to logs - only approved scans
     }
   };
 
@@ -433,18 +422,8 @@ export default function QRScanner() {
                         {item.ticketId.substring(0, 8)}...
                       </td>
                       <td className="px-4 py-3">
-                        <span
-                          className={`px-3 py-1 rounded-full text-xs font-semibold ${
-                            item.status === 'valid'
-                              ? 'bg-green-100 text-green-800'
-                              : item.status === 'already_used'
-                              ? 'bg-yellow-100 text-yellow-800'
-                              : 'bg-red-100 text-red-800'
-                          }`}
-                        >
-                          {item.status === 'valid' ? 'APPROVED' : 
-                           item.status === 'already_used' ? 'ALREADY USED' : 
-                           'DENIED'}
+                        <span className="px-3 py-1 rounded-full text-xs font-semibold bg-green-100 text-green-800">
+                          APPROVED
                         </span>
                       </td>
                       <td className="px-4 py-3 text-sm text-gray-600">

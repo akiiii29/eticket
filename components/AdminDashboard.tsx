@@ -268,23 +268,17 @@ export default function AdminDashboard() {
             </div>
             
             {/* Summary Stats */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
               <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-                <p className="text-sm text-green-600 font-semibold">Approved</p>
+                <p className="text-sm text-green-600 font-semibold">Total Approved Scans</p>
                 <p className="text-2xl font-bold text-green-800">
-                  {scanLogs.filter(log => log.status === 'valid').length}
+                  {scanLogs.length}
                 </p>
               </div>
-              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-                <p className="text-sm text-yellow-600 font-semibold">Already Used</p>
-                <p className="text-2xl font-bold text-yellow-800">
-                  {scanLogs.filter(log => log.status === 'already_used').length}
-                </p>
-              </div>
-              <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-                <p className="text-sm text-red-600 font-semibold">Denied</p>
-                <p className="text-2xl font-bold text-red-800">
-                  {scanLogs.filter(log => log.status === 'invalid' || log.status === 'error').length}
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                <p className="text-sm text-blue-600 font-semibold">Unique Tickets Scanned</p>
+                <p className="text-2xl font-bold text-blue-800">
+                  {new Set(scanLogs.map(log => log.ticket_id)).size}
                 </p>
               </div>
             </div>
@@ -308,18 +302,8 @@ export default function AdminDashboard() {
                       </td>
                       <td className="px-4 py-3 text-sm text-gray-700">{log.scanned_by_email}</td>
                       <td className="px-4 py-3">
-                        <span
-                          className={`px-3 py-1 rounded-full text-xs font-semibold ${
-                            log.status === 'valid'
-                              ? 'bg-green-100 text-green-800'
-                              : log.status === 'already_used'
-                              ? 'bg-yellow-100 text-yellow-800'
-                              : 'bg-red-100 text-red-800'
-                          }`}
-                        >
-                          {log.status === 'valid' ? 'APPROVED' :
-                           log.status === 'already_used' ? 'ALREADY USED' :
-                           'DENIED'}
+                        <span className="px-3 py-1 rounded-full text-xs font-semibold bg-green-100 text-green-800">
+                          APPROVED
                         </span>
                       </td>
                       <td className="px-4 py-3 text-sm text-gray-600">

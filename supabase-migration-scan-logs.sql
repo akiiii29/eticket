@@ -1,12 +1,12 @@
 -- Migration: Add scan_logs table for tracking scan history
 -- Run this in your Supabase SQL Editor if you already have the database set up
 
--- Create scan_logs table for tracking who scanned which ticket
+-- Create scan_logs table for tracking approved scans only
 create table if not exists scan_logs (
   id bigint primary key generated always as identity,
   ticket_id uuid not null references tickets(ticket_id) on delete cascade,
   scanned_by uuid not null references auth.users on delete cascade,
-  status text not null check (status in ('valid', 'invalid', 'already_used', 'error')),
+  status text not null default 'valid' check (status = 'valid'),
   scanned_at timestamp default now()
 );
 
