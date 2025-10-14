@@ -29,7 +29,7 @@ export default function QRScanner() {
   const [error, setError] = useState('');
   const [scanHistory, setScanHistory] = useState<ScanHistoryItem[]>([]);
   const [showConfirmation, setShowConfirmation] = useState(false);
-  const [pendingTicket, setPendingTicket] = useState<{ id: string; name: string } | null>(null);
+  const [pendingTicket, setPendingTicket] = useState<{ id: string; name: string; scanned_at: string } | null>(null);
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const codeReaderRef = useRef<BrowserQRCodeReader | null>(null);
@@ -195,7 +195,7 @@ export default function QRScanner() {
         return;
       }
 
-      setPendingTicket({ id: ticketId, name: data.ticket.name });
+      setPendingTicket({ id: ticketId, name: data.ticket.name, scanned_at: data.ticket.checked_in_at });
       setShowConfirmation(true);
     } catch (err) {
       console.error('Check ticket error:', err);
@@ -209,7 +209,7 @@ export default function QRScanner() {
       const res = await fetch('/api/validate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ticket_id: pendingTicket.id }),
+        body: JSON.stringify({ ticket_id: pendingTicket.id, scanned_at: new Date().toISOString() }),
       });
       const data = await res.json();
 
@@ -232,7 +232,7 @@ export default function QRScanner() {
     setResult({
       message: '❌ Từ chối vé',
       status: 'invalid',
-      ticket: { name: pendingTicket?.name || 'Unknown', checked_in_at: '' },
+      ticket: { name: pendingTicket?.name || 'Unknown', checked_in_at: pendingTicket?.scanned_at || '' },
     });
     setShowConfirmation(false);
     setPendingTicket(null);
