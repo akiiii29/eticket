@@ -38,19 +38,33 @@ export default function QRScanner() {
       const html5QrCode = new Html5Qrcode('qr-reader');
       html5QrCodeRef.current = html5QrCode;
 
-      await html5QrCode.start(
-        { facingMode: 'environment' },
-        {
-          fps: 10,
-          qrbox: { width: 250, height: 250 },
-        },
-        onScanSuccess,
-        () => {}
-      );
+      const config = {
+        fps: 10,
+        qrbox: { width: 250, height: 250 },
+        aspectRatio: 1.0,
+      };
+
+      // Try environment camera first, fallback to any camera
+      try {
+        await html5QrCode.start(
+          { facingMode: 'environment' },
+          config,
+          onScanSuccess,
+          () => {}
+        );
+      } catch (err) {
+        // Fallback to any available camera
+        await html5QrCode.start(
+          { facingMode: 'user' },
+          config,
+          onScanSuccess,
+          () => {}
+        );
+      }
 
       setScanning(true);
-    } catch (err) {
-      setError('Failed to start camera. Please allow camera access.');
+    } catch (err: any) {
+      setError(err?.message || 'Failed to start camera. Please allow camera access and ensure you are using HTTPS.');
       console.error(err);
     }
   };
@@ -143,11 +157,6 @@ export default function QRScanner() {
         {/* Scanner */}
         <div className="bg-white rounded-lg shadow-md p-6 mb-6">
           <div className="flex flex-col items-center">
-            <div
-              id="qr-reader"
-              className={`w-full max-w-md ${scanning ? 'block' : 'hidden'}`}
-            ></div>
-
             {!scanning && (
               <div className="w-full max-w-md h-64 bg-gray-100 rounded-lg flex items-center justify-center mb-4">
                 <div className="text-center">
@@ -168,6 +177,12 @@ export default function QRScanner() {
                 </div>
               </div>
             )}
+
+            <div
+              id="qr-reader"
+              className={`w-full max-w-md mb-4 ${scanning ? 'block' : 'hidden'}`}
+              style={{ minHeight: scanning ? '300px' : '0' }}
+            ></div>
 
             {error && (
               <div className="w-full mb-4 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">
