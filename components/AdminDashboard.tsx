@@ -206,6 +206,7 @@ export default function AdminDashboard() {
           <div className="bg-white rounded-lg p-8 max-w-md w-full">
             <h3 className="text-xl font-semibold mb-4 text-gray-800">QR Code Generated</h3>
             <div className="flex flex-col items-center">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src={qrCode} alt="QR Code" className="w-64 h-64 mb-4" />
               <div className="w-full mb-4">
                 <p className="text-sm text-gray-600 mb-2">QR URL:</p>
