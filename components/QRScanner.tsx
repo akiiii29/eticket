@@ -11,13 +11,22 @@ interface ValidationResult {
   ticket?: {
     name: string;
     checked_in_at: string;
+    ticket_id?: string;
   };
+}
+
+interface ScanHistoryItem {
+  ticketId: string;
+  name: string;
+  status: 'valid' | 'invalid' | 'already_used' | 'error';
+  scannedAt: string;
 }
 
 export default function QRScanner() {
   const [scanning, setScanning] = useState(false);
   const [result, setResult] = useState<ValidationResult | null>(null);
   const [error, setError] = useState('');
+  const [scanHistory, setScanHistory] = useState<ScanHistoryItem[]>([]);
   const videoRef = useRef<HTMLVideoElement>(null);
   const codeReaderRef = useRef<BrowserQRCodeReader | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -46,19 +55,34 @@ export default function QRScanner() {
         return;
       }
 
-      // Try to find back camera, otherwise use first available
-      const backCamera = videoInputDevices.find(device => 
-        device.label.toLowerCase().includes('back') || 
-        device.label.toLowerCase().includes('rear') ||
-        device.label.toLowerCase().includes('environment')
-      );
-      
-      const selectedDeviceId = backCamera?.deviceId || videoInputDevices[0].deviceId;
-
+      // Try to use back camera with environment facing mode
       if (videoRef.current) {
-        const stream = await navigator.mediaDevices.getUserMedia({
-          video: { deviceId: selectedDeviceId }
-        });
+        let stream: MediaStream;
+        
+        try {
+          // First try to get environment-facing camera (back camera)
+          stream = await navigator.mediaDevices.getUserMedia({
+            video: { facingMode: { exact: 'environment' } }
+          });
+        } catch (err) {
+          // Fallback: Try to find back camera by device ID
+          const backCamera = videoInputDevices.find(device => 
+            device.label.toLowerCase().includes('back') || 
+            device.label.toLowerCase().includes('rear') ||
+            device.label.toLowerCase().includes('environment')
+          );
+          
+          if (backCamera) {
+            stream = await navigator.mediaDevices.getUserMedia({
+              video: { deviceId: { exact: backCamera.deviceId } }
+            });
+          } else {
+            // Last fallback: use any camera with preference for environment
+            stream = await navigator.mediaDevices.getUserMedia({
+              video: { facingMode: 'environment' }
+            });
+          }
+        }
         videoRef.current.srcObject = stream;
         streamRef.current = stream;
         
@@ -115,11 +139,30 @@ export default function QRScanner() {
 
       const data = await response.json();
       setResult(data);
+
+      // Add to scan history
+      const historyItem: ScanHistoryItem = {
+        ticketId: ticketId,
+        name: data.ticket?.name || 'Unknown',
+        status: data.status,
+        scannedAt: new Date().toISOString(),
+      };
+      setScanHistory(prev => [historyItem, ...prev]);
     } catch (err) {
-      setResult({
+      const errorResult = {
         message: '❌ Validation failed',
+        status: 'error' as const,
+      };
+      setResult(errorResult);
+      
+      // Add error to history
+      const historyItem: ScanHistoryItem = {
+        ticketId: ticketId,
+        name: 'Error',
         status: 'error',
-      });
+        scannedAt: new Date().toISOString(),
+      };
+      setScanHistory(prev => [historyItem, ...prev]);
     }
   };
 
@@ -210,34 +253,133 @@ export default function QRScanner() {
           </div>
         </div>
 
-        {/* Result */}
+        {/* Result Modal */}
         {result && (
-          <div
-            className={`rounded-lg shadow-md p-6 border-l-4 ${getResultColor()}`}
-          >
-            <h3 className="text-2xl font-bold mb-2">{result.message}</h3>
-            {result.ticket && (
-              <div className="mt-4 space-y-2">
-                <p className="text-lg">
-                  <span className="font-semibold">Guest:</span> {result.ticket.name}
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+            <div className={`bg-white rounded-lg shadow-2xl max-w-md w-full border-t-8 ${
+              result.status === 'valid' ? 'border-green-500' :
+              result.status === 'already_used' ? 'border-yellow-500' :
+              'border-red-500'
+            }`}>
+              <div className="p-8">
+                {/* Icon */}
+                <div className="flex justify-center mb-4">
+                  {result.status === 'valid' && (
+                    <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center">
+                      <svg className="w-12 h-12 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                      </svg>
+                    </div>
+                  )}
+                  {result.status === 'already_used' && (
+                    <div className="w-20 h-20 bg-yellow-100 rounded-full flex items-center justify-center">
+                      <svg className="w-12 h-12 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                      </svg>
+                    </div>
+                  )}
+                  {(result.status === 'invalid' || result.status === 'error') && (
+                    <div className="w-20 h-20 bg-red-100 rounded-full flex items-center justify-center">
+                      <svg className="w-12 h-12 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </div>
+                  )}
+                </div>
+
+                {/* Message */}
+                <h3 className="text-2xl font-bold text-center mb-2 text-gray-800">
+                  {result.status === 'valid' && 'Ticket Approved'}
+                  {result.status === 'already_used' && 'Already Used'}
+                  {result.status === 'invalid' && 'Ticket Denied'}
+                  {result.status === 'error' && 'Error'}
+                </h3>
+                
+                <p className={`text-center text-lg mb-6 ${
+                  result.status === 'valid' ? 'text-green-700' :
+                  result.status === 'already_used' ? 'text-yellow-700' :
+                  'text-red-700'
+                }`}>
+                  {result.message}
                 </p>
-                {result.ticket.checked_in_at && (
-                  <p className="text-sm">
-                    <span className="font-semibold">Checked in at:</span>{' '}
-                    {new Date(result.ticket.checked_in_at).toLocaleString()}
-                  </p>
+
+                {/* Ticket Details */}
+                {result.ticket && (
+                  <div className="bg-gray-50 rounded-lg p-4 mb-6 space-y-2">
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Guest:</span>
+                      <span className="font-semibold text-gray-800">{result.ticket.name}</span>
+                    </div>
+                    {result.ticket.checked_in_at && (
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Checked in:</span>
+                        <span className="text-sm text-gray-700">
+                          {new Date(result.ticket.checked_in_at).toLocaleString()}
+                        </span>
+                      </div>
+                    )}
+                  </div>
                 )}
+
+                {/* Buttons */}
+                <button
+                  onClick={() => {
+                    setResult(null);
+                    startScanning();
+                  }}
+                  className="w-full bg-blue-600 text-white py-3 rounded-lg font-semibold hover:bg-blue-700 transition text-lg"
+                >
+                  Scan Next Ticket
+                </button>
               </div>
-            )}
-            <button
-              onClick={() => {
-                setResult(null);
-                startScanning();
-              }}
-              className="mt-4 bg-gray-800 text-white px-4 py-2 rounded-lg hover:bg-gray-900 transition"
-            >
-              Scan Next Ticket
-            </button>
+            </div>
+          </div>
+        )}
+
+        {/* Scan History Table */}
+        {scanHistory.length > 0 && (
+          <div className="bg-white rounded-lg shadow-md p-6">
+            <h2 className="text-xl font-semibold mb-4 text-gray-800">Scan History</h2>
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead className="bg-gray-50 border-b border-gray-200">
+                  <tr>
+                    <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Name</th>
+                    <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Ticket ID</th>
+                    <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Status</th>
+                    <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Scanned At</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-200">
+                  {scanHistory.map((item, index) => (
+                    <tr key={index} className="hover:bg-gray-50">
+                      <td className="px-4 py-3 text-sm text-gray-800">{item.name}</td>
+                      <td className="px-4 py-3 text-xs font-mono text-gray-600">
+                        {item.ticketId.substring(0, 8)}...
+                      </td>
+                      <td className="px-4 py-3">
+                        <span
+                          className={`px-3 py-1 rounded-full text-xs font-semibold ${
+                            item.status === 'valid'
+                              ? 'bg-green-100 text-green-800'
+                              : item.status === 'already_used'
+                              ? 'bg-yellow-100 text-yellow-800'
+                              : 'bg-red-100 text-red-800'
+                          }`}
+                        >
+                          {item.status === 'valid' ? 'APPROVED' : 
+                           item.status === 'already_used' ? 'ALREADY USED' : 
+                           'DENIED'}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-sm text-gray-600">
+                        {new Date(item.scannedAt).toLocaleTimeString()}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
         )}
       </div>
