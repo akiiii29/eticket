@@ -78,3 +78,23 @@ create index idx_scan_logs_ticket_id on scan_logs(ticket_id);
 create index idx_scan_logs_scanned_by on scan_logs(scanned_by);
 create index idx_scan_logs_scanned_at on scan_logs(scanned_at desc);
 
+-- Function to get user email by ID
+create or replace function get_user_email(user_id uuid)
+returns text
+language plpgsql
+security definer
+as $$
+declare
+  user_email text;
+begin
+  select email into user_email
+  from auth.users
+  where id = user_id;
+  
+  return coalesce(user_email, 'Unknown');
+end;
+$$;
+
+-- Grant execute permission
+grant execute on function get_user_email(uuid) to authenticated;
+

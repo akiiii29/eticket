@@ -51,39 +51,48 @@ export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const type = searchParams.get('type'); // 'my' or 'all'
 
-  let query = supabase
-    .from('scan_logs')
-    .select(`
-      *,
-      tickets(name, ticket_id),
-      profiles!scan_logs_scanned_by_fkey(id)
-    `)
-    .order('scanned_at', { ascending: false });
+  try {
+    let query = supabase
+      .from('scan_logs')
+      .select(`
+        id,
+        ticket_id,
+        scanned_by,
+        status,
+        scanned_at,
+        tickets(name, ticket_id)
+      `)
+      .order('scanned_at', { ascending: false });
 
-  // If type is 'my', only get current user's scans
-  if (type === 'my') {
-    query = query.eq('scanned_by', user.id);
+    // If type is 'my', only get current user's scans
+    if (type === 'my') {
+      query = query.eq('scanned_by', user.id);
+    }
+
+    const { data: logs, error } = await query;
+
+    if (error) {
+      console.error('Scan logs query error:', error);
+      return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+
+    // Get user emails using RPC function
+    const logsWithEmails = await Promise.all(
+      (logs || []).map(async (log) => {
+        const { data: email } = await supabase
+          .rpc('get_user_email', { user_id: log.scanned_by });
+        
+        return {
+          ...log,
+          scanned_by_email: email || `User ${log.scanned_by.substring(0, 8)}`,
+        };
+      })
+    );
+
+    return NextResponse.json({ logs: logsWithEmails });
+  } catch (err: any) {
+    console.error('Scan logs API error:', err);
+    return NextResponse.json({ error: err.message || 'Internal server error' }, { status: 500 });
   }
-
-  const { data: logs, error } = await query;
-
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
-  }
-
-  // Get user emails for the logs
-  const userIds = [...new Set(logs?.map(log => log.scanned_by) || [])];
-  const { data: users } = await supabase.auth.admin.listUsers();
-  
-  const userMap = new Map(
-    users?.users?.map(u => [u.id, u.email]) || []
-  );
-
-  const logsWithEmails = logs?.map(log => ({
-    ...log,
-    scanned_by_email: userMap.get(log.scanned_by) || 'Unknown',
-  }));
-
-  return NextResponse.json({ logs: logsWithEmails });
 }
 
