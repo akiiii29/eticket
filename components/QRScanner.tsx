@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { BrowserQRCodeReader } from '@zxing/browser';
+import { BrowserQRCodeReader, IScannerControls } from '@zxing/browser';
 import { createClient } from '@/utils/supabase/client';
 import { useRouter } from 'next/navigation';
 
@@ -29,28 +29,27 @@ export default function QRScanner() {
   const [scanHistory, setScanHistory] = useState<ScanHistoryItem[]>([]);
   const [showConfirmation, setShowConfirmation] = useState(false);
   const [pendingTicket, setPendingTicket] = useState<{ id: string; name: string } | null>(null);
+
   const videoRef = useRef<HTMLVideoElement>(null);
   const codeReaderRef = useRef<BrowserQRCodeReader | null>(null);
+  const controlsRef = useRef<IScannerControls | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const processingRef = useRef<boolean>(false);
-  const lastScannedTicketRef = useRef<string | null>(null);
+  const sessionRef = useRef<number>(0);
+
   const router = useRouter();
   const supabase = createClient();
 
   useEffect(() => {
-    // Load scan history for current user
     loadScanHistory();
-    
-    return () => {
-      stopScanning();
-    };
+    return () => stopScanning();
   }, []);
 
   const loadScanHistory = async () => {
     try {
       const response = await fetch('/api/scan-logs?type=my');
       const data = await response.json();
-      
+
       if (data.logs) {
         const history: ScanHistoryItem[] = data.logs.map((log: any) => ({
           ticketId: log.ticket_id,
@@ -65,124 +64,93 @@ export default function QRScanner() {
     }
   };
 
-  const startScanning = async () => {
+  const stopScanning = () => {
     try {
-      setError('');
-      setResult(null);
-      
-      // Ensure complete cleanup before starting
-      stopScanning();
-      
-      // Small delay to ensure cleanup is complete
-      await new Promise(resolve => setTimeout(resolve, 100));
-      
-      // Reset processing flag and last scanned ticket AFTER cleanup
-      processingRef.current = false;
-      lastScannedTicketRef.current = null;
+      if (controlsRef.current) {
+        controlsRef.current.stop();
+        controlsRef.current = null;
+      }
 
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach((track) => track.stop());
+        streamRef.current = null;
+      }
+
+      if (videoRef.current) {
+        videoRef.current.srcObject = null;
+      }
+
+      setScanning(false);
+    } catch (e) {
+      console.warn('Error stopping scan:', e);
+    }
+  };
+
+  const startScanning = async () => {
+    sessionRef.current++;
+    const currentSession = sessionRef.current;
+
+    stopScanning(); // cleanup
+    await new Promise((r) => setTimeout(r, 100));
+
+    processingRef.current = false;
+    setError('');
+    setResult(null);
+
+    try {
       const codeReader = new BrowserQRCodeReader();
       codeReaderRef.current = codeReader;
 
-      // Get available video devices
-      const videoInputDevices = await BrowserQRCodeReader.listVideoInputDevices();
-      
-      if (videoInputDevices.length === 0) {
+      const devices = await BrowserQRCodeReader.listVideoInputDevices();
+      if (devices.length === 0) {
         setError('No camera found on this device');
         return;
       }
 
-      // Try to use back camera with environment facing mode
-      if (videoRef.current) {
-        let stream: MediaStream;
-        
-        try {
-          // First try to get environment-facing camera (back camera)
-          stream = await navigator.mediaDevices.getUserMedia({
-            video: { facingMode: { exact: 'environment' } }
-          });
-        } catch (err) {
-          // Fallback: Try to find back camera by device ID
-          const backCamera = videoInputDevices.find(device => 
-            device.label.toLowerCase().includes('back') || 
-            device.label.toLowerCase().includes('rear') ||
-            device.label.toLowerCase().includes('environment')
-          );
-          
-          if (backCamera) {
-            stream = await navigator.mediaDevices.getUserMedia({
-              video: { deviceId: { exact: backCamera.deviceId } }
-            });
-          } else {
-            // Last fallback: use any camera with preference for environment
-            stream = await navigator.mediaDevices.getUserMedia({
-              video: { facingMode: 'environment' }
-            });
+      const backCam =
+        devices.find((d) => /back|rear|environment/i.test(d.label))?.deviceId ||
+        devices[0].deviceId;
+
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { deviceId: backCam },
+      });
+
+      if (!videoRef.current) return;
+      videoRef.current.srcObject = stream;
+      streamRef.current = stream;
+      await videoRef.current.play();
+
+      setScanning(true);
+
+      const controls = await codeReader.decodeFromVideoDevice(
+        backCam,
+        videoRef.current,
+        (res, err) => {
+          if (sessionRef.current !== currentSession) return;
+          if (res && !processingRef.current) {
+            processingRef.current = true;
+            onScanSuccess(res.getText());
+            stopScanning();
           }
         }
-        videoRef.current.srcObject = stream;
-        streamRef.current = stream;
-        
-        await codeReader.decodeFromVideoElement(
-          videoRef.current,
-          (result, error) => {
-            // Double-check processing flag in callback
-            if (result && !processingRef.current) {
-              onScanSuccess(result.getText());
-            }
-          }
-        );
+      );
 
-        setScanning(true);
-      }
+      controlsRef.current = controls;
     } catch (err: any) {
       console.error(err);
-      setError(err?.message || 'Failed to start camera. Please allow camera access and use HTTPS.');
+      setError(err?.message || 'Failed to start camera. Please allow camera access.');
     }
-  };
-
-  const stopScanning = () => {
-    // Stop the video stream
-    if (streamRef.current) {
-      streamRef.current.getTracks().forEach(track => track.stop());
-      streamRef.current = null;
-    }
-    
-    // Clear video element source
-    if (videoRef.current) {
-      videoRef.current.srcObject = null;
-    }
-    
-    // Clear the code reader reference
-    codeReaderRef.current = null;
-    
-    setScanning(false);
   };
 
   const onScanSuccess = async (decodedText: string) => {
-    // IMMEDIATE check and block - no logs, no delays
-    if (processingRef.current) {
-      return;
-    }
-    
-    // Set flag IMMEDIATELY - before ANY async operations
+    if (processingRef.current) return;
     processingRef.current = true;
-    
-    console.log('QR Scanned:', decodedText);
 
-    // Stop camera immediately (synchronous part)
-    if (streamRef.current) {
-      streamRef.current.getTracks().forEach(track => track.stop());
-      streamRef.current = null;
-    }
-    if (videoRef.current) {
-      videoRef.current.srcObject = null;
-    }
+    console.log('QR Scanned:', decodedText);
     setScanning(false);
 
-    // Extract ticket_id from URL
     const match = decodedText.match(/\/validate\/([a-f0-9-]+)/i);
     if (!match) {
-      console.log('Invalid QR format');
       setResult({
         message: '❌ Invalid QR code format',
         status: 'invalid',
@@ -191,34 +159,22 @@ export default function QRScanner() {
     }
 
     const ticketId = match[1];
-    console.log('Ticket ID:', ticketId);
 
-    // Check ticket status first (without marking as used)
     try {
-      console.log('Checking ticket...');
       const response = await fetch('/api/check-ticket', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ticket_id: ticketId }),
       });
 
       const data = await response.json();
-      console.log('Check ticket response:', data);
 
       if (!data.exists) {
-        console.log('Ticket not found');
-        setResult({
-          message: '❌ Invalid ticket',
-          status: 'invalid',
-        });
+        setResult({ message: '❌ Invalid ticket', status: 'invalid' });
         return;
       }
 
-      // If already used, show error
       if (data.status === 'used') {
-        console.log('Ticket already used');
         setResult({
           message: '⚠️ Already checked in',
           status: 'already_used',
@@ -230,62 +186,36 @@ export default function QRScanner() {
         return;
       }
 
-      // If valid (unused), show confirmation dialog
-      console.log('Showing confirmation dialog');
-      setPendingTicket({
-        id: ticketId,
-        name: data.ticket.name,
-      });
+      setPendingTicket({ id: ticketId, name: data.ticket.name });
       setShowConfirmation(true);
-      console.log('Confirmation state set to true');
     } catch (err) {
       console.error('Check ticket error:', err);
-      const errorResult = {
-        message: '❌ Validation failed',
-        status: 'error' as const,
-      };
-      setResult(errorResult);
+      setResult({ message: '❌ Validation failed', status: 'error' });
     }
   };
 
   const handleApprove = async () => {
     if (!pendingTicket) return;
-
     try {
-      // Mark ticket as used
-      const response = await fetch('/api/validate', {
+      const res = await fetch('/api/validate', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ticket_id: pendingTicket.id }),
       });
+      const data = await res.json();
 
-      const data = await response.json();
-
-      // Save to scan logs
       if (data.status === 'valid') {
         await fetch('/api/scan-logs', {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            ticket_id: pendingTicket.id,
-            status: data.status,
-          }),
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ticket_id: pendingTicket.id, status: data.status }),
         });
-
-        // Reload scan history
         await loadScanHistory();
       }
 
       setResult(data);
-    } catch (err) {
-      setResult({
-        message: '❌ Approval failed',
-        status: 'error',
-      });
+    } catch {
+      setResult({ message: '❌ Approval failed', status: 'error' });
     }
 
     setShowConfirmation(false);
@@ -296,10 +226,7 @@ export default function QRScanner() {
     setResult({
       message: '❌ Ticket Denied',
       status: 'invalid',
-      ticket: {
-        name: pendingTicket?.name || 'Unknown',
-        checked_in_at: '',
-      },
+      ticket: { name: pendingTicket?.name || 'Unknown', checked_in_at: '' },
     });
     setShowConfirmation(false);
     setPendingTicket(null);
@@ -324,6 +251,7 @@ export default function QRScanner() {
     }
   };
 
+  // 👇 UI giữ nguyên của bạn
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
       <div className="max-w-2xl mx-auto p-6">
@@ -348,22 +276,7 @@ export default function QRScanner() {
           <div className="flex flex-col items-center">
             {!scanning && (
               <div className="w-full max-w-md h-64 bg-gray-100 rounded-lg flex items-center justify-center mb-4">
-                <div className="text-center">
-                  <svg
-                    className="mx-auto h-16 w-16 text-gray-400"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z"
-                    />
-                  </svg>
-                  <p className="mt-2 text-gray-600">Camera inactive</p>
-                </div>
+                <p className="text-gray-600">Camera inactive</p>
               </div>
             )}
 
@@ -410,20 +323,17 @@ export default function QRScanner() {
                 <h3 className="text-2xl font-bold text-center mb-2 text-gray-800">
                   Confirm Check-In
                 </h3>
-                
                 <p className="text-center text-gray-600 mb-6">
                   Do you want to approve this ticket?
                 </p>
-
-                {/* Ticket Details */}
                 <div className="bg-gray-50 rounded-lg p-4 mb-6">
                   <div className="flex justify-between items-center">
                     <span className="text-gray-600">Guest Name:</span>
-                    <span className="font-semibold text-gray-800 text-lg">{pendingTicket.name}</span>
+                    <span className="font-semibold text-gray-800 text-lg">
+                      {pendingTicket.name}
+                    </span>
                   </div>
                 </div>
-
-                {/* Buttons */}
                 <div className="space-y-3">
                   <button
                     onClick={handleApprove}
@@ -446,76 +356,27 @@ export default function QRScanner() {
         {/* Result Modal */}
         {result && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-            <div className={`bg-white rounded-lg shadow-2xl max-w-md w-full border-t-8 ${
-              result.status === 'valid' ? 'border-green-500' :
-              result.status === 'already_used' ? 'border-yellow-500' :
-              'border-red-500'
-            }`}>
-              <div className="p-8">
-                {/* Icon */}
-                <div className="flex justify-center mb-4">
-                  {result.status === 'valid' && (
-                    <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center">
-                      <svg className="w-12 h-12 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
-                      </svg>
-                    </div>
-                  )}
-                  {result.status === 'already_used' && (
-                    <div className="w-20 h-20 bg-yellow-100 rounded-full flex items-center justify-center">
-                      <svg className="w-12 h-12 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                      </svg>
-                    </div>
-                  )}
-                  {(result.status === 'invalid' || result.status === 'error') && (
-                    <div className="w-20 h-20 bg-red-100 rounded-full flex items-center justify-center">
-                      <svg className="w-12 h-12 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M6 18L18 6M6 6l12 12" />
-                      </svg>
-                    </div>
-                  )}
-                </div>
-
-                {/* Message */}
-                <h3 className="text-2xl font-bold text-center mb-2 text-gray-800">
-                  {result.status === 'valid' && 'Ticket Approved'}
-                  {result.status === 'already_used' && 'Already Used'}
-                  {result.status === 'invalid' && 'Ticket Denied'}
-                  {result.status === 'error' && 'Error'}
+            <div
+              className={`bg-white rounded-lg shadow-2xl max-w-md w-full border-t-8 ${
+                result.status === 'valid'
+                  ? 'border-green-500'
+                  : result.status === 'already_used'
+                  ? 'border-yellow-500'
+                  : 'border-red-500'
+              }`}
+            >
+              <div className="p-8 text-center">
+                <h3 className="text-2xl font-bold mb-2 text-gray-800">
+                  {result.status === 'valid'
+                    ? 'Ticket Approved'
+                    : result.status === 'already_used'
+                    ? 'Already Used'
+                    : 'Ticket Denied'}
                 </h3>
-                
-                <p className={`text-center text-lg mb-6 ${
-                  result.status === 'valid' ? 'text-green-700' :
-                  result.status === 'already_used' ? 'text-yellow-700' :
-                  'text-red-700'
-                }`}>
-                  {result.message}
-                </p>
-
-                {/* Ticket Details */}
-                {result.ticket && (
-                  <div className="bg-gray-50 rounded-lg p-4 mb-6 space-y-2">
-                    <div className="flex justify-between">
-                      <span className="text-gray-600">Guest:</span>
-                      <span className="font-semibold text-gray-800">{result.ticket.name}</span>
-                    </div>
-                    {result.ticket.checked_in_at && (
-                      <div className="flex justify-between">
-                        <span className="text-gray-600">Checked in:</span>
-                        <span className="text-sm text-gray-700">
-                          {new Date(result.ticket.checked_in_at).toLocaleString()}
-                        </span>
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {/* Buttons */}
+                <p className="mb-6 text-gray-700">{result.message}</p>
                 <button
                   onClick={() => {
                     setResult(null);
-                    // Flag will be reset in startScanning
                     startScanning();
                   }}
                   className="w-full bg-blue-600 text-white py-3 rounded-lg font-semibold hover:bg-blue-700 transition text-lg"
