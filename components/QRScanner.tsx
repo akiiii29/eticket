@@ -104,7 +104,7 @@ export default function QRScanner() {
 
       const devices = await BrowserQRCodeReader.listVideoInputDevices();
       if (devices.length === 0) {
-        setError('No camera found on this device');
+        setError('Không tìm thấy camera trên thiết bị này');
         return;
       }
 
@@ -147,7 +147,7 @@ export default function QRScanner() {
       controlsRef.current = controls;
     } catch (err: any) {
       console.error(err);
-      setError(err?.message || 'Failed to start camera. Please allow camera access.');
+      setError(err?.message || 'Không thể bắt đầu quét. Vui lòng cho phép truy cập camera.');
     }
   };
 
@@ -161,7 +161,7 @@ export default function QRScanner() {
     const match = decodedText.match(/\/validate\/([a-f0-9-]+)/i);
     if (!match) {
       setResult({
-        message: '❌ Invalid QR code format',
+        message: '❌ Mã QR không hợp lệ',
         status: 'invalid',
       });
       return;
@@ -179,13 +179,13 @@ export default function QRScanner() {
       const data = await response.json();
 
       if (!data.exists) {
-        setResult({ message: '❌ Invalid ticket', status: 'invalid' });
+        setResult({ message: '❌ Vé không hợp lệ', status: 'invalid' });
         return;
       }
 
       if (data.status === 'used') {
         setResult({
-          message: '⚠️ Already checked in',
+          message: '⚠️ Đã được sử dụng',
           status: 'already_used',
           ticket: {
             name: data.ticket.name,
@@ -199,7 +199,7 @@ export default function QRScanner() {
       setShowConfirmation(true);
     } catch (err) {
       console.error('Check ticket error:', err);
-      setResult({ message: '❌ Validation failed', status: 'error' });
+      setResult({ message: '❌ Duyệt vé thất bại', status: 'error' });
     }
   };
 
@@ -224,7 +224,7 @@ export default function QRScanner() {
 
       setResult(data);
     } catch {
-      setResult({ message: '❌ Approval failed', status: 'error' });
+      setResult({ message: '❌ Duyệt vé thất bại', status: 'error' });
     }
 
     setShowConfirmation(false);
@@ -233,7 +233,7 @@ export default function QRScanner() {
 
   const handleDeny = () => {
     setResult({
-      message: '❌ Ticket Denied',
+      message: '❌ Từ chối vé',
       status: 'invalid',
       ticket: { name: pendingTicket?.name || 'Unknown', checked_in_at: '' },
     });
