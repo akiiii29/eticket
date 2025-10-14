@@ -53,7 +53,7 @@ export default function AdminDashboard() {
   };
 
   const fetchScanLogs = async () => {
-    const response = await fetch('/api/scan-logs?type=all');
+    const response = await fetch('/api/scan-logs?type=valid');
     const data = await response.json();
     if (data.logs) {
       setScanLogs(data.logs);
