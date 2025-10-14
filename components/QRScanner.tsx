@@ -20,6 +20,7 @@ export default function QRScanner() {
   const [error, setError] = useState('');
   const videoRef = useRef<HTMLVideoElement>(null);
   const codeReaderRef = useRef<BrowserQRCodeReader | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
   const router = useRouter();
   const supabase = createClient();
 
@@ -55,14 +56,18 @@ export default function QRScanner() {
       const selectedDeviceId = backCamera?.deviceId || videoInputDevices[0].deviceId;
 
       if (videoRef.current) {
-        await codeReader.decodeFromVideoDevice(
-          selectedDeviceId,
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: { deviceId: selectedDeviceId }
+        });
+        videoRef.current.srcObject = stream;
+        streamRef.current = stream;
+        
+        await codeReader.decodeFromVideoElement(
           videoRef.current,
           (result, error) => {
             if (result) {
               onScanSuccess(result.getText());
             }
-            // Ignore errors - they happen when no QR code is in view
           }
         );
 
@@ -75,10 +80,11 @@ export default function QRScanner() {
   };
 
   const stopScanning = () => {
-    if (codeReaderRef.current) {
-      codeReaderRef.current.reset();
-      setScanning(false);
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach(track => track.stop());
+      streamRef.current = null;
     }
+    setScanning(false);
   };
 
   const onScanSuccess = async (decodedText: string) => {
