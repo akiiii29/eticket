@@ -46,9 +46,9 @@ export default function QRScanner() {
     return () => stopScanning();
   }, []);
 
-  const loadScanHistory = async () => {
+  const loadScanHistory = async (page = 0, limit = 20) => {
     try {
-      const response = await fetch('/api/scan-logs?type=my');
+      const response = await fetch(`/api/scan-logs?type=my&limit=${limit}&offset=${page * limit}`);
       const data = await response.json();
 
       if (data.logs) {
@@ -58,7 +58,14 @@ export default function QRScanner() {
           status: log.status,
           scanned_at: log.scanned_at,
         }));
-        setScanHistory(history);
+        
+        if (page === 0) {
+          // First page - replace all history
+          setScanHistory(history);
+        } else {
+          // Subsequent pages - append to existing history
+          setScanHistory(prev => [...prev, ...history]);
+        }
       }
     } catch (err) {
       console.error('Failed to load scan history:', err);

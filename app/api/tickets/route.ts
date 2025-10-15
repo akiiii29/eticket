@@ -85,15 +85,51 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 
-  const { data: tickets, error } = await supabase
-    .from('tickets')
-    .select('*')
-    .order('created_at', { ascending: false });
+  const { searchParams } = new URL(request.url);
+  const limit = parseInt(searchParams.get('limit') || '100');
+  const offset = parseInt(searchParams.get('offset') || '0');
+  const status = searchParams.get('status');
+  const batchId = searchParams.get('batch_id');
 
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  try {
+    let query = supabase
+      .from('tickets')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .range(offset, offset + limit - 1);
+
+    // Add filters if provided
+    if (status && status !== 'all') {
+      query = query.eq('status', status);
+    }
+
+    if (batchId) {
+      query = query.eq('batch_id', batchId);
+    }
+
+    const { data: tickets, error } = await query;
+
+    if (error) {
+      return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+
+    // Get total count for pagination (only if no filters applied for performance)
+    let totalCount = null;
+    if (!status && !batchId) {
+      const { count } = await supabase
+        .from('tickets')
+        .select('*', { count: 'exact', head: true });
+      totalCount = count;
+    }
+
+    return NextResponse.json({ 
+      tickets: tickets || [], 
+      totalCount,
+      hasMore: tickets && tickets.length === limit 
+    });
+  } catch (err: any) {
+    console.error('Tickets API error:', err);
+    return NextResponse.json({ error: err.message || 'Internal server error' }, { status: 500 });
   }
-
-  return NextResponse.json({ tickets });
 }
 

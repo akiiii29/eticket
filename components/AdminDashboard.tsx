@@ -89,11 +89,17 @@ export default function AdminDashboard() {
     fetchScanLogs();
   }, []);
 
-  const fetchTickets = async () => {
-    const response = await fetch('/api/tickets');
+  const fetchTickets = async (page = 0, limit = 100) => {
+    const response = await fetch(`/api/tickets?limit=${limit}&offset=${page * limit}`);
     const data = await response.json();
     if (data.tickets) {
-      setTickets(data.tickets);
+      if (page === 0) {
+        // First page - replace all tickets
+        setTickets(data.tickets);
+      } else {
+        // Subsequent pages - append to existing tickets
+        setTickets(prev => [...prev, ...data.tickets]);
+      }
       groupTicketsByBatch(data.tickets);
     }
   };
@@ -124,11 +130,17 @@ export default function AdminDashboard() {
     setTicketBatches(batches);
   };
 
-  const fetchScanLogs = async () => {
-    const response = await fetch('/api/scan-logs?type=valid');
+  const fetchScanLogs = async (page = 0, limit = 50) => {
+    const response = await fetch(`/api/scan-logs?type=valid&limit=${limit}&offset=${page * limit}`);
     const data = await response.json();
     if (data.logs) {
-      setScanLogs(data.logs);
+      if (page === 0) {
+        // First page - replace all logs
+        setScanLogs(data.logs);
+      } else {
+        // Subsequent pages - append to existing logs
+        setScanLogs(prev => [...prev, ...data.logs]);
+      }
     }
   };
 
