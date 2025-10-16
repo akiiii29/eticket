@@ -425,7 +425,7 @@ export default function QRScanner() {
             <div className="flex justify-between items-center mb-4">
               <h2 className="text-xl font-semibold text-gray-800">Lịch Sử Quét Của Bạn</h2>
               <button
-                onClick={loadScanHistory}
+                onClick={() => loadScanHistory()}
                 className="text-sm text-blue-600 hover:text-blue-800 flex items-center gap-1"
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
