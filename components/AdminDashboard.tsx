@@ -54,6 +54,8 @@ export default function AdminDashboard() {
   const [showModal, setShowModal] = useState(false);
   const [showScanLogs, setShowScanLogs] = useState(false);
   const [showAllTickets, setShowAllTickets] = useState(false);
+  const [ticketsLoading, setTicketsLoading] = useState(false);
+  const [scanLogsLoading, setScanLogsLoading] = useState(false);
   
   // Filters for all tickets view
   const [searchTerm, setSearchTerm] = useState('');
@@ -160,17 +162,22 @@ export default function AdminDashboard() {
   }, []);
 
   const fetchTickets = async (page = 0, limit = 100) => {
-    const response = await fetch(`/api/tickets?limit=${limit}&offset=${page * limit}`);
-    const data = await response.json();
-    if (data.tickets) {
-      if (page === 0) {
-        // First page - replace all tickets
-        setTickets(data.tickets);
-      } else {
-        // Subsequent pages - append to existing tickets
-        setTickets(prev => [...prev, ...data.tickets]);
+    if (page === 0) setTicketsLoading(true);
+    try {
+      const response = await fetch(`/api/tickets?limit=${limit}&offset=${page * limit}`);
+      const data = await response.json();
+      if (data.tickets) {
+        if (page === 0) {
+          // First page - replace all tickets
+          setTickets(data.tickets);
+        } else {
+          // Subsequent pages - append to existing tickets
+          setTickets(prev => [...prev, ...data.tickets]);
+        }
+        groupTicketsByBatch(data.tickets);
       }
-      groupTicketsByBatch(data.tickets);
+    } finally {
+      if (page === 0) setTicketsLoading(false);
     }
   };
 
@@ -201,16 +208,21 @@ export default function AdminDashboard() {
   };
 
   const fetchScanLogs = async (page = 0, limit = 50) => {
-    const response = await fetch(`/api/scan-logs?type=valid&limit=${limit}&offset=${page * limit}`);
-    const data = await response.json();
-    if (data.logs) {
-      if (page === 0) {
-        // First page - replace all logs
-        setScanLogs(data.logs);
-      } else {
-        // Subsequent pages - append to existing logs
-        setScanLogs(prev => [...prev, ...data.logs]);
+    if (page === 0) setScanLogsLoading(true);
+    try {
+      const response = await fetch(`/api/scan-logs?type=valid&limit=${limit}&offset=${page * limit}`);
+      const data = await response.json();
+      if (data.logs) {
+        if (page === 0) {
+          // First page - replace all logs
+          setScanLogs(data.logs);
+        } else {
+          // Subsequent pages - append to existing logs
+          setScanLogs(prev => [...prev, ...data.logs]);
+        }
       }
+    } finally {
+      if (page === 0) setScanLogsLoading(false);
     }
   };
 
@@ -463,12 +475,20 @@ export default function AdminDashboard() {
             <h2 className="text-xl font-semibold text-gray-800">Vé Theo Khách</h2>
             <button
               onClick={() => fetchTickets()}
-              className="text-sm text-blue-600 hover:text-blue-800 flex items-center gap-1"
+              disabled={ticketsLoading}
+              className={`text-sm flex items-center gap-2 ${ticketsLoading ? 'text-gray-400 cursor-not-allowed' : 'text-blue-600 hover:text-blue-800'}`}
             >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-              </svg>
-              Làm Mới
+              {ticketsLoading ? (
+                <svg className="w-4 h-4 animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" strokeWidth="4"></circle>
+                  <path className="opacity-75" d="M4 12a8 8 0 018-8" strokeWidth="4"></path>
+                </svg>
+              ) : (
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+              )}
+              {ticketsLoading ? 'Đang tải...' : 'Làm Mới'}
             </button>
           </div>
           <div className="overflow-x-auto">
@@ -497,7 +517,21 @@ export default function AdminDashboard() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200">
-                {ticketBatches.map((batch, idx) => (
+                {ticketsLoading && ticketBatches.length === 0 && (
+                  Array.from({ length: 6 }).map((_, i) => (
+                    <tr key={`skeleton-${i}`} className="animate-pulse">
+                      <td className="px-4 py-3">
+                        <div className="h-4 bg-gray-200 rounded w-40 mb-2"></div>
+                        <div className="h-3 bg-gray-100 rounded w-24"></div>
+                      </td>
+                      <td className="px-4 py-3"><div className="h-5 bg-gray-200 rounded w-12"></div></td>
+                      <td className="px-4 py-3"><div className="h-5 bg-gray-200 rounded w-12"></div></td>
+                      <td className="px-4 py-3"><div className="h-5 bg-gray-200 rounded w-12"></div></td>
+                      <td className="px-4 py-3"><div className="h-8 bg-gray-200 rounded w-20"></div></td>
+                    </tr>
+                  ))
+                )}
+                {!ticketsLoading && ticketBatches.map((batch, idx) => (
                   <tr key={idx} className="hover:bg-gray-50">
                     <td className="px-4 py-3 text-sm font-semibold text-gray-800 overflow-hidden text-ellipsis whitespace-nowrap">
                       {batch.guestName}
@@ -656,7 +690,19 @@ export default function AdminDashboard() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-200">
-                  {getFilteredTickets().map((ticket) => (
+                  {ticketsLoading && (
+                    Array.from({ length: 8 }).map((_, i) => (
+                      <tr key={`all-skeleton-${i}`} className="animate-pulse">
+                        <td className="px-4 py-3"><div className="h-4 bg-gray-200 rounded w-40"></div></td>
+                        <td className="px-4 py-3"><div className="h-3 bg-gray-200 rounded w-32"></div></td>
+                        <td className="px-4 py-3"><div className="h-5 bg-gray-200 rounded w-20"></div></td>
+                        <td className="px-4 py-3"><div className="h-4 bg-gray-200 rounded w-44"></div></td>
+                        <td className="px-4 py-3"><div className="h-4 bg-gray-200 rounded w-36"></div></td>
+                        <td className="px-4 py-3"><div className="h-4 bg-gray-200 rounded w-36"></div></td>
+                      </tr>
+                    ))
+                  )}
+                  {!ticketsLoading && getFilteredTickets().map((ticket) => (
                     <tr key={ticket.id} className="hover:bg-gray-50">
                       <td className="px-4 py-3 text-sm text-gray-800 overflow-hidden text-ellipsis whitespace-nowrap">
                         {ticket.name}
@@ -690,7 +736,7 @@ export default function AdminDashboard() {
                   ))}
                 </tbody>
               </table>
-              {getFilteredTickets().length === 0 && (
+              {!ticketsLoading && getFilteredTickets().length === 0 && (
                 <div className="text-center py-8 text-gray-500">
                   Không có vé nào phù hợp
                 </div>
@@ -709,12 +755,20 @@ export default function AdminDashboard() {
               </div>
               <button
                 onClick={() => fetchScanLogs()}
-                className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition flex items-center gap-2"
+                disabled={scanLogsLoading}
+                className={`px-4 py-2 rounded-lg transition flex items-center gap-2 ${scanLogsLoading ? 'bg-blue-300 cursor-not-allowed text-white' : 'bg-blue-600 hover:bg-blue-700 text-white'}`}
               >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                </svg>
-                Làm Mới
+                {scanLogsLoading ? (
+                  <svg className="w-4 h-4 animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" strokeWidth="4"></circle>
+                    <path className="opacity-75" d="M4 12a8 8 0 018-8" strokeWidth="4"></path>
+                  </svg>
+                ) : (
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                  </svg>
+                )}
+                {scanLogsLoading ? 'Đang tải...' : 'Làm Mới'}
               </button>
             </div>
             
@@ -759,7 +813,18 @@ export default function AdminDashboard() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-200">
-                  {scanLogs.map((log) => (
+                  {scanLogsLoading && (
+                    Array.from({ length: 8 }).map((_, i) => (
+                      <tr key={`logs-skeleton-${i}`} className="animate-pulse">
+                        <td className="px-4 py-3"><div className="h-4 bg-gray-200 rounded w-40"></div></td>
+                        <td className="px-4 py-3"><div className="h-3 bg-gray-200 rounded w-24"></div></td>
+                        <td className="px-4 py-3"><div className="h-4 bg-gray-200 rounded w-44"></div></td>
+                        <td className="px-4 py-3"><div className="h-5 bg-gray-200 rounded w-20"></div></td>
+                        <td className="px-4 py-3"><div className="h-4 bg-gray-200 rounded w-36"></div></td>
+                      </tr>
+                    ))
+                  )}
+                  {!scanLogsLoading && scanLogs.map((log) => (
                     <tr key={log.id} className="hover:bg-gray-50">
                       <td className="px-4 py-3 text-sm text-gray-800 overflow-hidden text-ellipsis whitespace-nowrap">{log.tickets.name}</td>
                       <td className="px-4 py-3 text-xs font-mono text-gray-600 overflow-hidden text-ellipsis whitespace-nowrap">
@@ -778,7 +843,7 @@ export default function AdminDashboard() {
                   ))}
                 </tbody>
               </table>
-              {scanLogs.length === 0 && (
+              {!scanLogsLoading && scanLogs.length === 0 && (
                 <div className="text-center py-8 text-gray-500">
                   Chưa có lịch sử quét
                 </div>
