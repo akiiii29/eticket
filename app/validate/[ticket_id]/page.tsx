@@ -35,7 +35,9 @@ export default async function ValidatePage({
     
     userRole = profile?.role;
   }
-
+  if (!user) {
+    notFound();
+  }
   return (
     <ValidateTicketClient 
       ticket={ticket} 
