@@ -18,6 +18,14 @@ body {
   color: var(--foreground);
   background: var(--background);
   font-family: Arial, Helvetica, sans-serif;
+  /* Custom cursor for the whole page */
+  cursor: url('/icon-chuot.png') 16 16, auto;
+}
+
+/* Pointer-style cursor for interactive elements with the same image */
+a, button, [role="button"], input[type="button"], input[type="submit"],
+input[type="reset"], label, select, summary {
+  cursor: url('/icon-chuot.png') 16 16, pointer;
 }
 
 @layer utilities {
