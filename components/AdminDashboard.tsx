@@ -86,7 +86,7 @@ export default function AdminDashboard() {
         img.crossOrigin = 'anonymous';
         img.onload = () => resolve(img);
         img.onerror = reject;
-        img.src = '/public/logo.png';
+        img.src = 'public/logo.png';
       });
 
       const logoScale = 0.22; // 22% of QR size
