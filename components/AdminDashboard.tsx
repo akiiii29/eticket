@@ -86,7 +86,8 @@ export default function AdminDashboard() {
         img.crossOrigin = 'anonymous';
         img.onload = () => resolve(img);
         img.onerror = reject;
-        img.src = 'public/logo.png';
+        // In Next.js, assets in /public are served from root path
+        img.src = '/logo.png';
       });
 
       const logoScale = 0.22; // 22% of QR size
@@ -112,8 +113,19 @@ export default function AdminDashboard() {
       ctx.fill();
       ctx.restore();
 
-      // Draw the logo image centered
-      ctx.drawImage(logo, x, y, logoSize, logoSize);
+      // Draw the logo image centered, preserve aspect ratio and add padding inside the rounded box
+      const padding = Math.floor(logoSize * 0.12);
+      const maxInner = logoSize - padding * 2;
+      const aspect = logo.width / logo.height || 1;
+      let drawW = maxInner;
+      let drawH = Math.floor(maxInner / aspect);
+      if (drawH > maxInner) {
+        drawH = maxInner;
+        drawW = Math.floor(maxInner * aspect);
+      }
+      const drawX = x + Math.floor((logoSize - drawW) / 2);
+      const drawY = y + Math.floor((logoSize - drawH) / 2);
+      ctx.drawImage(logo, drawX, drawY, drawW, drawH);
 
       return canvas.toDataURL('image/png');
     } catch {
