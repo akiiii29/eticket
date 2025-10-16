@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Hệ Thống E-Ticket Check-in",
-  description: "Hệ thống check-in vé nội bộ với xác thực QR",
+  title: "Rise Team Ticket Check-in",
+  description: "Rise Team Ticket Check-in System",
   icons: {
     icon: "/logo.png",
     shortcut: "/logo.png",
