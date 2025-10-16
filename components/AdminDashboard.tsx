@@ -64,6 +64,64 @@ export default function AdminDashboard() {
   const router = useRouter();
   const supabase = createClient();
 
+  // Generate QR code and overlay center logo using canvas
+  const generateBrandedQR = async (qrUrl: string, size = 512): Promise<string> => {
+    const QRCode = (await import('qrcode')).default;
+    const canvas = document.createElement('canvas');
+    canvas.width = size;
+    canvas.height = size;
+    await QRCode.toCanvas(canvas, qrUrl, {
+      width: size,
+      margin: 2,
+      color: { dark: '#000000', light: '#FFFFFF' },
+      errorCorrectionLevel: 'H',
+    } as any);
+
+    try {
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return canvas.toDataURL('image/png');
+
+      const logo = await new Promise<HTMLImageElement>((resolve, reject) => {
+        const img = new Image();
+        img.crossOrigin = 'anonymous';
+        img.onload = () => resolve(img);
+        img.onerror = reject;
+        img.src = '/public/logo.png';
+      });
+
+      const logoScale = 0.22; // 22% of QR size
+      const logoSize = Math.floor(size * logoScale);
+      const x = Math.floor((size - logoSize) / 2);
+      const y = Math.floor((size - logoSize) / 2);
+
+      // Draw a white rounded background under the logo to keep QR scannable
+      const radius = Math.floor(logoSize * 0.2);
+      ctx.save();
+      ctx.fillStyle = '#FFFFFF';
+      ctx.beginPath();
+      ctx.moveTo(x + radius, y);
+      ctx.lineTo(x + logoSize - radius, y);
+      ctx.quadraticCurveTo(x + logoSize, y, x + logoSize, y + radius);
+      ctx.lineTo(x + logoSize, y + logoSize - radius);
+      ctx.quadraticCurveTo(x + logoSize, y + logoSize, x + logoSize - radius, y + logoSize);
+      ctx.lineTo(x + radius, y + logoSize);
+      ctx.quadraticCurveTo(x, y + logoSize, x, y + logoSize - radius);
+      ctx.lineTo(x, y + radius);
+      ctx.quadraticCurveTo(x, y, x + radius, y);
+      ctx.closePath();
+      ctx.fill();
+      ctx.restore();
+
+      // Draw the logo image centered
+      ctx.drawImage(logo, x, y, logoSize, logoSize);
+
+      return canvas.toDataURL('image/png');
+    } catch {
+      // If logo fails to load, return plain QR
+      return canvas.toDataURL('image/png');
+    }
+  };
+
   // Column resize handler
   const createResizableColumn = (e: React.MouseEvent<HTMLDivElement>) => {
     const th = (e.target as HTMLElement).parentElement as HTMLTableCellElement;
@@ -183,7 +241,7 @@ export default function AdminDashboard() {
         // Generate QR code on frontend with correct URL
         const appUrl = "https://riseteam-ticket.vercel.app/";
         const url = `${appUrl}validate/${data.ticket.ticket_id}`;
-        const qr = await QRCode.toDataURL(url);
+        const qr = await generateBrandedQR(url, 512);
         
         createdTickets.push({
           qrCode: qr, // Use frontend-generated QR with correct URL
@@ -216,17 +274,8 @@ export default function AdminDashboard() {
   };
 
   const downloadSingleQR = async (item: {qrCode: string; qrUrl: string; ticket: Ticket}, index: number) => {
-    const QRCode = (await import('qrcode')).default;
-    
-    // Generate high-resolution QR code (1024x1024)
-    const highResQR = await QRCode.toDataURL(item.qrUrl, {
-      width: 1024,
-      margin: 2,
-      color: {
-        dark: '#000000',
-        light: '#FFFFFF',
-      },
-    });
+    // Generate high-resolution branded QR (1024x1024)
+    const highResQR = await generateBrandedQR(item.qrUrl, 1024);
     
     // Create download link
     const link = document.createElement('a');
@@ -292,7 +341,7 @@ export default function AdminDashboard() {
     const qrCodes = await Promise.all(
       batchTickets.map(async (ticket) => {
         const url = `${appUrl}validate/${ticket.ticket_id}`;
-        const qr = await QRCode.toDataURL(url);
+        const qr = await generateBrandedQR(url, 512);
         return { qrCode: qr, qrUrl: url, ticket };
       })
     );
