@@ -1,9 +1,9 @@
-'use client';
+"use client";
 
-import { useState, useEffect } from 'react';
-import { createClient } from '@/utils/supabase/client';
-import { useRouter } from 'next/navigation';
-import { formatDateTime, formatDate, formatTime } from '@/utils/dateUtils';
+import { useState, useEffect } from "react";
+import { createClient } from "@/utils/supabase/client";
+import { useRouter } from "next/navigation";
+import { formatDateTime, formatDate, formatTime } from "@/utils/dateUtils";
 
 interface Ticket {
   id: number;
@@ -46,50 +46,57 @@ export default function AdminDashboard() {
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [ticketBatches, setTicketBatches] = useState<TicketBatch[]>([]);
   const [scanLogs, setScanLogs] = useState<ScanLog[]>([]);
-  const [name, setName] = useState('');
-  const [quantity, setQuantity] = useState(1);
+  const [name, setName] = useState("");
+  const [quantity, setQuantity] = useState("");
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
-  const [selectedGuestQRs, setSelectedGuestQRs] = useState<Array<{qrCode: string; qrUrl: string; ticket: Ticket}>>([]);
+  const [error, setError] = useState("");
+  const [selectedGuestQRs, setSelectedGuestQRs] = useState<
+    Array<{ qrCode: string; qrUrl: string; ticket: Ticket }>
+  >([]);
   const [showModal, setShowModal] = useState(false);
   const [showScanLogs, setShowScanLogs] = useState(false);
   const [showAllTickets, setShowAllTickets] = useState(false);
   const [ticketsLoading, setTicketsLoading] = useState(false);
   const [scanLogsLoading, setScanLogsLoading] = useState(false);
-  
+
   // Filters for all tickets view
-  const [searchTerm, setSearchTerm] = useState('');
-  const [filterStatus, setFilterStatus] = useState<string>('all');
-  const [filterDateFrom, setFilterDateFrom] = useState('');
-  const [filterDateTo, setFilterDateTo] = useState('');
-  
+  const [searchTerm, setSearchTerm] = useState("");
+  const [filterStatus, setFilterStatus] = useState<string>("all");
+  const [filterDateFrom, setFilterDateFrom] = useState("");
+  const [filterDateTo, setFilterDateTo] = useState("");
+
   const router = useRouter();
   const supabase = createClient();
 
+  const quantityNumber = parseInt(quantity || "0", 10) || 0;
+
   // Generate QR code and overlay center logo using canvas
-  const generateBrandedQR = async (qrUrl: string, size = 512): Promise<string> => {
-    const QRCode = (await import('qrcode')).default;
-    const canvas = document.createElement('canvas');
+  const generateBrandedQR = async (
+    qrUrl: string,
+    size = 512
+  ): Promise<string> => {
+    const QRCode = (await import("qrcode")).default;
+    const canvas = document.createElement("canvas");
     canvas.width = size;
     canvas.height = size;
     await QRCode.toCanvas(canvas, qrUrl, {
       width: size,
       margin: 2,
-      color: { dark: '#000000', light: '#FFFFFF' },
-      errorCorrectionLevel: 'H',
+      color: { dark: "#000000", light: "#FFFFFF" },
+      errorCorrectionLevel: "H",
     } as any);
 
     try {
-      const ctx = canvas.getContext('2d');
-      if (!ctx) return canvas.toDataURL('image/png');
+      const ctx = canvas.getContext("2d");
+      if (!ctx) return canvas.toDataURL("image/png");
 
       const logo = await new Promise<HTMLImageElement>((resolve, reject) => {
         const img = new Image();
-        img.crossOrigin = 'anonymous';
+        img.crossOrigin = "anonymous";
         img.onload = () => resolve(img);
         img.onerror = reject;
         // In Next.js, assets in /public are served from root path
-        img.src = '/logo.png';
+        img.src = "/logo.png";
       });
 
       const logoScale = 0.22; // 22% of QR size
@@ -100,13 +107,18 @@ export default function AdminDashboard() {
       // Draw a white rounded background under the logo to keep QR scannable
       const radius = Math.floor(logoSize * 0.2);
       ctx.save();
-      ctx.fillStyle = '#FFFFFF';
+      ctx.fillStyle = "#FFFFFF";
       ctx.beginPath();
       ctx.moveTo(x + radius, y);
       ctx.lineTo(x + logoSize - radius, y);
       ctx.quadraticCurveTo(x + logoSize, y, x + logoSize, y + radius);
       ctx.lineTo(x + logoSize, y + logoSize - radius);
-      ctx.quadraticCurveTo(x + logoSize, y + logoSize, x + logoSize - radius, y + logoSize);
+      ctx.quadraticCurveTo(
+        x + logoSize,
+        y + logoSize,
+        x + logoSize - radius,
+        y + logoSize
+      );
       ctx.lineTo(x + radius, y + logoSize);
       ctx.quadraticCurveTo(x, y + logoSize, x, y + logoSize - radius);
       ctx.lineTo(x, y + radius);
@@ -129,10 +141,10 @@ export default function AdminDashboard() {
       const drawY = y + Math.floor((logoSize - drawH) / 2);
       ctx.drawImage(logo, drawX, drawY, drawW, drawH);
 
-      return canvas.toDataURL('image/png');
+      return canvas.toDataURL("image/png");
     } catch {
       // If logo fails to load, return plain QR
-      return canvas.toDataURL('image/png');
+      return canvas.toDataURL("image/png");
     }
   };
 
@@ -148,12 +160,12 @@ export default function AdminDashboard() {
     };
 
     const onMouseUp = () => {
-      document.removeEventListener('mousemove', onMouseMove);
-      document.removeEventListener('mouseup', onMouseUp);
+      document.removeEventListener("mousemove", onMouseMove);
+      document.removeEventListener("mouseup", onMouseUp);
     };
 
-    document.addEventListener('mousemove', onMouseMove);
-    document.addEventListener('mouseup', onMouseUp);
+    document.addEventListener("mousemove", onMouseMove);
+    document.addEventListener("mouseup", onMouseUp);
   };
 
   useEffect(() => {
@@ -164,7 +176,9 @@ export default function AdminDashboard() {
   const fetchTickets = async (page = 0, limit = 100) => {
     if (page === 0) setTicketsLoading(true);
     try {
-      const response = await fetch(`/api/tickets?limit=${limit}&offset=${page * limit}`);
+      const response = await fetch(
+        `/api/tickets?limit=${limit}&offset=${page * limit}`
+      );
       const data = await response.json();
       if (data.tickets) {
         if (page === 0) {
@@ -172,7 +186,7 @@ export default function AdminDashboard() {
           setTickets(data.tickets);
         } else {
           // Subsequent pages - append to existing tickets
-          setTickets(prev => [...prev, ...data.tickets]);
+          setTickets((prev) => [...prev, ...data.tickets]);
         }
         groupTicketsByBatch(data.tickets);
       }
@@ -183,26 +197,32 @@ export default function AdminDashboard() {
 
   const groupTicketsByBatch = (allTickets: Ticket[]) => {
     const grouped: { [key: string]: Ticket[] } = {};
-    
-    allTickets.forEach(ticket => {
+
+    allTickets.forEach((ticket) => {
       if (!grouped[ticket.batch_id]) {
         grouped[ticket.batch_id] = [];
       }
       grouped[ticket.batch_id].push(ticket);
     });
 
-    const batches: TicketBatch[] = Object.keys(grouped).map(batchId => {
-      const batchTickets = grouped[batchId];
-      return {
-        batchId,
-        guestName: batchTickets[0].name,
-        tickets: batchTickets,
-        totalTickets: batchTickets.length,
-        usedTickets: batchTickets.filter(t => t.status === 'used').length,
-        unusedTickets: batchTickets.filter(t => t.status === 'unused').length,
-        createdAt: batchTickets[0].created_at,
-      };
-    }).sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    const batches: TicketBatch[] = Object.keys(grouped)
+      .map((batchId) => {
+        const batchTickets = grouped[batchId];
+        return {
+          batchId,
+          guestName: batchTickets[0].name,
+          tickets: batchTickets,
+          totalTickets: batchTickets.length,
+          usedTickets: batchTickets.filter((t) => t.status === "used").length,
+          unusedTickets: batchTickets.filter((t) => t.status === "unused")
+            .length,
+          createdAt: batchTickets[0].created_at,
+        };
+      })
+      .sort(
+        (a, b) =>
+          new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+      );
 
     setTicketBatches(batches);
   };
@@ -210,7 +230,9 @@ export default function AdminDashboard() {
   const fetchScanLogs = async (page = 0, limit = 50) => {
     if (page === 0) setScanLogsLoading(true);
     try {
-      const response = await fetch(`/api/scan-logs?type=valid&limit=${limit}&offset=${page * limit}`);
+      const response = await fetch(
+        `/api/scan-logs?type=valid&limit=${limit}&offset=${page * limit}`
+      );
       const data = await response.json();
       if (data.logs) {
         if (page === 0) {
@@ -218,7 +240,7 @@ export default function AdminDashboard() {
           setScanLogs(data.logs);
         } else {
           // Subsequent pages - append to existing logs
-          setScanLogs(prev => [...prev, ...data.logs]);
+          setScanLogs((prev) => [...prev, ...data.logs]);
         }
       }
     } finally {
@@ -228,28 +250,39 @@ export default function AdminDashboard() {
 
   const handleCreateTicket = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError('');
+    setError("");
+
+    // Validate quantity must be at least 1
+    if (quantityNumber < 1) {
+      setError("Số lượng vé phải lớn hơn hoặc bằng 1");
+      return;
+    }
+
     setLoading(true);
-    
+
     // Clear old QR codes and close modal immediately to prevent showing stale data
     setSelectedGuestQRs([]);
     setShowModal(false);
 
     try {
-      const createdTickets: Array<{qrCode: string; qrUrl: string; ticket: Ticket}> = [];
-      
+      const createdTickets: Array<{
+        qrCode: string;
+        qrUrl: string;
+        ticket: Ticket;
+      }> = [];
+
       // Generate a single batch_id for all tickets in this creation
       const batchId = crypto.randomUUID();
-      
+
       // Import QRCode library
-      const QRCode = (await import('qrcode')).default;
-      
+      const QRCode = (await import("qrcode")).default;
+
       // Create multiple tickets for the same guest with same batch_id
-      for (let i = 0; i < quantity; i++) {
-        const response = await fetch('/api/tickets', {
-          method: 'POST',
+      for (let i = 0; i < quantityNumber; i++) {
+        const response = await fetch("/api/tickets", {
+          method: "POST",
           headers: {
-            'Content-Type': 'application/json',
+            "Content-Type": "application/json",
           },
           body: JSON.stringify({ name, batch_id: batchId }),
         });
@@ -257,7 +290,7 @@ export default function AdminDashboard() {
         const data = await response.json();
 
         if (!response.ok) {
-          setError(data.error || 'Failed to create ticket');
+          setError(data.error || "Failed to create ticket");
           setLoading(false);
           return;
         }
@@ -266,7 +299,7 @@ export default function AdminDashboard() {
         const appUrl = "https://riseteam-ticket.vercel.app/";
         const url = `${appUrl}validate/${data.ticket.ticket_id}`;
         const qr = await generateBrandedQR(url, 512);
-        
+
         createdTickets.push({
           qrCode: qr, // Use frontend-generated QR with correct URL
           qrUrl: url,
@@ -277,11 +310,11 @@ export default function AdminDashboard() {
       // Show all created QR codes
       setSelectedGuestQRs(createdTickets);
       setShowModal(true);
-      setName('');
-      setQuantity(1);
+      setName("");
+      setQuantity("");
       fetchTickets();
     } catch (err) {
-      setError('Đã xảy ra lỗi không mong muốn');
+      setError("Đã xảy ra lỗi không mong muốn");
     } finally {
       setLoading(false);
     }
@@ -289,22 +322,27 @@ export default function AdminDashboard() {
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
-    router.push('/login');
+    router.push("/login");
   };
 
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text);
-    alert('Đã sao chép vào clipboard!');
+    alert("Đã sao chép vào clipboard!");
   };
 
-  const downloadSingleQR = async (item: {qrCode: string; qrUrl: string; ticket: Ticket}, index: number) => {
+  const downloadSingleQR = async (
+    item: { qrCode: string; qrUrl: string; ticket: Ticket },
+    index: number
+  ) => {
     // Generate high-resolution branded QR (1024x1024)
     const highResQR = await generateBrandedQR(item.qrUrl, 1024);
-    
+
     // Create download link
-    const link = document.createElement('a');
+    const link = document.createElement("a");
     link.href = highResQR;
-    link.download = `${item.ticket.name}_ve_${index + 1}_${item.ticket.ticket_id.substring(0, 8)}.png`;
+    link.download = `${item.ticket.name}_ve_${
+      index + 1
+    }_${item.ticket.ticket_id.substring(0, 8)}.png`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -314,39 +352,46 @@ export default function AdminDashboard() {
     for (let i = 0; i < selectedGuestQRs.length; i++) {
       const item = selectedGuestQRs[i];
       await downloadSingleQR(item, i);
-      
+
       // Small delay between downloads to prevent browser blocking
       if (i < selectedGuestQRs.length - 1) {
-        await new Promise(resolve => setTimeout(resolve, 200));
+        await new Promise((resolve) => setTimeout(resolve, 200));
       }
     }
   };
 
   const getFilteredTickets = (): TicketWithScan[] => {
     // Add scan info to tickets
-    const ticketsWithScan: TicketWithScan[] = tickets.map(ticket => {
-      const scanLog = scanLogs.find(log => log.ticket_id === ticket.ticket_id);
+    const ticketsWithScan: TicketWithScan[] = tickets.map((ticket) => {
+      const scanLog = scanLogs.find(
+        (log) => log.ticket_id === ticket.ticket_id
+      );
       return {
         ...ticket,
         scanned_by_email: scanLog?.scanned_by_email,
       };
     });
 
-    return ticketsWithScan.filter(ticket => {
+    return ticketsWithScan.filter((ticket) => {
       // Search filter
       const searchLower = searchTerm.toLowerCase();
-      const matchesSearch = !searchTerm || 
+      const matchesSearch =
+        !searchTerm ||
         ticket.name.toLowerCase().includes(searchLower) ||
         ticket.ticket_id.toLowerCase().includes(searchLower) ||
-        (ticket.scanned_by_email && ticket.scanned_by_email.toLowerCase().includes(searchLower));
+        (ticket.scanned_by_email &&
+          ticket.scanned_by_email.toLowerCase().includes(searchLower));
 
       // Status filter
-      const matchesStatus = filterStatus === 'all' || ticket.status === filterStatus;
+      const matchesStatus =
+        filterStatus === "all" || ticket.status === filterStatus;
 
       // Date created filter
       const ticketDate = new Date(ticket.created_at);
-      const matchesDateFrom = !filterDateFrom || ticketDate >= new Date(filterDateFrom);
-      const matchesDateTo = !filterDateTo || ticketDate <= new Date(filterDateTo + 'T23:59:59');
+      const matchesDateFrom =
+        !filterDateFrom || ticketDate >= new Date(filterDateFrom);
+      const matchesDateTo =
+        !filterDateTo || ticketDate <= new Date(filterDateTo + "T23:59:59");
 
       return matchesSearch && matchesStatus && matchesDateFrom && matchesDateTo;
     });
@@ -356,12 +401,12 @@ export default function AdminDashboard() {
     // Clear old QR codes and close modal immediately to prevent showing stale data
     setSelectedGuestQRs([]);
     setShowModal(false);
-    
+
     const appUrl = "https://riseteam-ticket.vercel.app/";
-    const QRCode = (await import('qrcode')).default;
-    
-    const batchTickets = tickets.filter(t => t.batch_id === batchId);
-    
+    const QRCode = (await import("qrcode")).default;
+
+    const batchTickets = tickets.filter((t) => t.batch_id === batchId);
+
     const qrCodes = await Promise.all(
       batchTickets.map(async (ticket) => {
         const url = `${appUrl}validate/${ticket.ticket_id}`;
@@ -369,7 +414,7 @@ export default function AdminDashboard() {
         return { qrCode: qr, qrUrl: url, ticket };
       })
     );
-    
+
     setSelectedGuestQRs(qrCodes);
     setShowModal(true);
   };
@@ -381,7 +426,9 @@ export default function AdminDashboard() {
         <div className="bg-white rounded-lg shadow-md p-6 mb-6">
           <div className="flex justify-between items-center">
             <div>
-              <h1 className="text-3xl font-bold text-gray-800">Rise Team Ticket Check-in</h1>
+              <h1 className="text-3xl font-bold text-gray-800">
+                Rise Team Ticket Check-in
+              </h1>
               <p className="text-gray-600 mt-1">Quản lý vé sự kiện</p>
             </div>
             <div className="flex gap-3">
@@ -392,10 +439,20 @@ export default function AdminDashboard() {
                 }}
                 className="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 transition flex items-center gap-2"
               >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 10h16M4 14h16M4 18h16" />
+                <svg
+                  className="w-5 h-5"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M4 6h16M4 10h16M4 14h16M4 18h16"
+                  />
                 </svg>
-                {showAllTickets ? 'Ẩn' : 'Tất Cả'} Vé
+                {showAllTickets ? "Ẩn" : "Tất Cả"} Vé
               </button>
               <button
                 onClick={() => {
@@ -404,10 +461,20 @@ export default function AdminDashboard() {
                 }}
                 className="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 transition flex items-center gap-2"
               >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                <svg
+                  className="w-5 h-5"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                  />
                 </svg>
-                {showScanLogs ? 'Ẩn' : 'Xem'} Lịch Sử Quét
+                {showScanLogs ? "Ẩn" : "Xem"} Lịch Sử Quét
               </button>
               <button
                 onClick={handleLogout}
@@ -421,7 +488,9 @@ export default function AdminDashboard() {
 
         {/* Create Ticket Form */}
         <div className="bg-white rounded-lg shadow-md p-6 mb-6">
-          <h2 className="text-xl font-semibold mb-4 text-gray-800">Tạo Vé Mới</h2>
+          <h2 className="text-xl font-semibold mb-4 text-gray-800">
+            Tạo Vé Mới
+          </h2>
           <form onSubmit={handleCreateTicket}>
             <div className="flex gap-4 mb-4">
               <div className="flex-1">
@@ -444,8 +513,20 @@ export default function AdminDashboard() {
                 <input
                   type="number"
                   value={quantity}
-                  onChange={(e) => setQuantity(Math.max(1, parseInt(e.target.value) || 1))}
-                  min="1"
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    // Allow only digits (empty string is OK so user can clear)
+                    if (/^\d*$/.test(val)) {
+                      setQuantity(val);
+                    }
+                  }}
+                  onKeyDown={(e) => {
+                    // Block non-numeric special keys like e, +, -, .
+                    if (["e", "E", "+", "-", "."].includes(e.key)) {
+                      e.preventDefault();
+                    }
+                  }}
+                  min="0"
                   max="100"
                   required
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
@@ -457,7 +538,11 @@ export default function AdminDashboard() {
                   disabled={loading}
                   className="bg-blue-600 text-white px-6 py-2 rounded-lg font-semibold hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition whitespace-nowrap"
                 >
-                  {loading ? 'Đang tạo...' : `Tạo ${quantity} Vé`}
+                  {loading
+                    ? "Đang tạo..."
+                    : quantityNumber >= 1
+                    ? `Tạo ${quantityNumber} Vé`
+                    : "Tạo Vé"}
                 </button>
               </div>
             </div>
@@ -472,98 +557,165 @@ export default function AdminDashboard() {
         {/* Tickets by Guest */}
         <div className="bg-white rounded-lg shadow-md p-6">
           <div className="flex justify-between items-center mb-4">
-            <h2 className="text-xl font-semibold text-gray-800">Vé Theo Khách</h2>
+            <h2 className="text-xl font-semibold text-gray-800">
+              Vé Theo Khách
+            </h2>
             <button
               onClick={() => fetchTickets()}
               disabled={ticketsLoading}
-              className={`text-sm flex items-center gap-2 ${ticketsLoading ? 'text-gray-400 cursor-not-allowed' : 'text-blue-600 hover:text-blue-800'}`}
+              className={`text-sm flex items-center gap-2 ${
+                ticketsLoading
+                  ? "text-gray-400 cursor-not-allowed"
+                  : "text-blue-600 hover:text-blue-800"
+              }`}
             >
               {ticketsLoading ? (
-                <svg className="w-4 h-4 animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" strokeWidth="4"></circle>
-                  <path className="opacity-75" d="M4 12a8 8 0 018-8" strokeWidth="4"></path>
+                <svg
+                  className="w-4 h-4 animate-spin"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                >
+                  <circle
+                    className="opacity-25"
+                    cx="12"
+                    cy="12"
+                    r="10"
+                    strokeWidth="4"
+                  ></circle>
+                  <path
+                    className="opacity-75"
+                    d="M4 12a8 8 0 018-8"
+                    strokeWidth="4"
+                  ></path>
                 </svg>
               ) : (
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                <svg
+                  className="w-4 h-4"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+                  />
                 </svg>
               )}
-              {ticketsLoading ? 'Đang tải...' : 'Làm Mới'}
+              {ticketsLoading ? "Đang tải..." : "Làm Mới"}
             </button>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full table-fixed">
               <thead className="bg-gray-50 border-b border-gray-200">
                 <tr>
-                  <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700 relative" style={{ width: '250px' }}>
+                  <th
+                    className="px-4 py-3 text-left text-sm font-semibold text-gray-700 relative"
+                    style={{ width: "250px" }}
+                  >
                     Tên Khách
-                    <div onMouseDown={createResizableColumn} className="absolute right-0 top-0 h-full w-1 cursor-col-resize hover:bg-blue-500" />
+                    <div
+                      onMouseDown={createResizableColumn}
+                      className="absolute right-0 top-0 h-full w-1 cursor-col-resize hover:bg-blue-500"
+                    />
                   </th>
-                  <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700 relative" style={{ width: '120px' }}>
+                  <th
+                    className="px-4 py-3 text-left text-sm font-semibold text-gray-700 relative"
+                    style={{ width: "120px" }}
+                  >
                     Tổng
-                    <div onMouseDown={createResizableColumn} className="absolute right-0 top-0 h-full w-1 cursor-col-resize hover:bg-blue-500" />
+                    <div
+                      onMouseDown={createResizableColumn}
+                      className="absolute right-0 top-0 h-full w-1 cursor-col-resize hover:bg-blue-500"
+                    />
                   </th>
-                  <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700 relative" style={{ width: '120px' }}>
+                  <th
+                    className="px-4 py-3 text-left text-sm font-semibold text-gray-700 relative"
+                    style={{ width: "120px" }}
+                  >
                     Đã Dùng
-                    <div onMouseDown={createResizableColumn} className="absolute right-0 top-0 h-full w-1 cursor-col-resize hover:bg-blue-500" />
+                    <div
+                      onMouseDown={createResizableColumn}
+                      className="absolute right-0 top-0 h-full w-1 cursor-col-resize hover:bg-blue-500"
+                    />
                   </th>
-                  <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700 relative" style={{ width: '120px' }}>
+                  <th
+                    className="px-4 py-3 text-left text-sm font-semibold text-gray-700 relative"
+                    style={{ width: "120px" }}
+                  >
                     Chưa Dùng
-                    <div onMouseDown={createResizableColumn} className="absolute right-0 top-0 h-full w-1 cursor-col-resize hover:bg-blue-500" />
+                    <div
+                      onMouseDown={createResizableColumn}
+                      className="absolute right-0 top-0 h-full w-1 cursor-col-resize hover:bg-blue-500"
+                    />
                   </th>
-                  <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700" style={{ width: '150px' }}>
+                  <th
+                    className="px-4 py-3 text-left text-sm font-semibold text-gray-700"
+                    style={{ width: "150px" }}
+                  >
                     Thao Tác
                   </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200">
-                {ticketsLoading && ticketBatches.length === 0 && (
+                {ticketsLoading &&
+                  ticketBatches.length === 0 &&
                   Array.from({ length: 6 }).map((_, i) => (
                     <tr key={`skeleton-${i}`} className="animate-pulse">
                       <td className="px-4 py-3">
                         <div className="h-4 bg-gray-200 rounded w-40 mb-2"></div>
                         <div className="h-3 bg-gray-100 rounded w-24"></div>
                       </td>
-                      <td className="px-4 py-3"><div className="h-5 bg-gray-200 rounded w-12"></div></td>
-                      <td className="px-4 py-3"><div className="h-5 bg-gray-200 rounded w-12"></div></td>
-                      <td className="px-4 py-3"><div className="h-5 bg-gray-200 rounded w-12"></div></td>
-                      <td className="px-4 py-3"><div className="h-8 bg-gray-200 rounded w-20"></div></td>
+                      <td className="px-4 py-3">
+                        <div className="h-5 bg-gray-200 rounded w-12"></div>
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="h-5 bg-gray-200 rounded w-12"></div>
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="h-5 bg-gray-200 rounded w-12"></div>
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="h-8 bg-gray-200 rounded w-20"></div>
+                      </td>
                     </tr>
-                  ))
-                )}
-                {!ticketsLoading && ticketBatches.map((batch, idx) => (
-                  <tr key={idx} className="hover:bg-gray-50">
-                    <td className="px-4 py-3 text-sm font-semibold text-gray-800 overflow-hidden text-ellipsis whitespace-nowrap">
-                      {batch.guestName}
-                      <div className="text-xs text-gray-500 font-normal">
-                        Tạo: {formatDate(batch.createdAt)}
-                      </div>
-                    </td>
-                    <td className="px-4 py-3 text-sm text-gray-700">
-                      <span className="px-2 py-1 bg-blue-100 text-blue-800 rounded font-semibold">
-                        {batch.totalTickets}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 text-sm text-gray-700">
-                      <span className="px-2 py-1 bg-yellow-100 text-yellow-800 rounded font-semibold">
-                        {batch.usedTickets}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 text-sm text-gray-700">
-                      <span className="px-2 py-1 bg-green-100 text-green-800 rounded font-semibold">
-                        {batch.unusedTickets}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3">
-                      <button
-                        onClick={() => getQrCodesForBatch(batch.batchId)}
-                        className="bg-indigo-600 text-white px-3 py-1 rounded text-xs hover:bg-indigo-700 transition"
-                      >
-                        Xem Mã QR
-                      </button>
-                    </td>
-                  </tr>
-                ))}
+                  ))}
+                {!ticketsLoading &&
+                  ticketBatches.map((batch, idx) => (
+                    <tr key={idx} className="hover:bg-gray-50">
+                      <td className="px-4 py-3 text-sm font-semibold text-gray-800 overflow-hidden text-ellipsis whitespace-nowrap">
+                        {batch.guestName}
+                        <div className="text-xs text-gray-500 font-normal">
+                          Tạo: {formatDate(batch.createdAt)}
+                        </div>
+                      </td>
+                      <td className="px-4 py-3 text-sm text-gray-700">
+                        <span className="px-2 py-1 bg-blue-100 text-blue-800 rounded font-semibold">
+                          {batch.totalTickets}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-sm text-gray-700">
+                        <span className="px-2 py-1 bg-yellow-100 text-yellow-800 rounded font-semibold">
+                          {batch.usedTickets}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-sm text-gray-700">
+                        <span className="px-2 py-1 bg-green-100 text-green-800 rounded font-semibold">
+                          {batch.unusedTickets}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3">
+                        <button
+                          onClick={() => getQrCodesForBatch(batch.batchId)}
+                          className="bg-indigo-600 text-white px-3 py-1 rounded text-xs hover:bg-indigo-700 transition"
+                        >
+                          Xem Mã QR
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
               </tbody>
             </table>
             {ticketBatches.length === 0 && (
@@ -578,7 +730,9 @@ export default function AdminDashboard() {
         {showAllTickets && (
           <div className="bg-white rounded-lg shadow-md p-6 mb-6">
             <div className="mb-6">
-              <h2 className="text-2xl font-bold text-gray-800 mb-2">Tất Cả Vé</h2>
+              <h2 className="text-2xl font-bold text-gray-800 mb-2">
+                Tất Cả Vé
+              </h2>
               <p className="text-sm text-gray-600">Tìm kiếm và lọc tất cả vé</p>
             </div>
 
@@ -596,7 +750,7 @@ export default function AdminDashboard() {
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
                 />
               </div>
-              
+
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Trạng Thái
@@ -638,14 +792,17 @@ export default function AdminDashboard() {
             </div>
 
             {/* Clear Filters Button */}
-            {(searchTerm || filterStatus !== 'all' || filterDateFrom || filterDateTo) && (
+            {(searchTerm ||
+              filterStatus !== "all" ||
+              filterDateFrom ||
+              filterDateTo) && (
               <div className="mb-4">
                 <button
                   onClick={() => {
-                    setSearchTerm('');
-                    setFilterStatus('all');
-                    setFilterDateFrom('');
-                    setFilterDateTo('');
+                    setSearchTerm("");
+                    setFilterStatus("all");
+                    setFilterDateFrom("");
+                    setFilterDateTo("");
                   }}
                   className="text-sm text-gray-600 hover:text-gray-800 underline"
                 >
@@ -664,76 +821,124 @@ export default function AdminDashboard() {
               <table className="w-full table-fixed">
                 <thead className="bg-gray-50 border-b border-gray-200">
                   <tr>
-                    <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700 relative" style={{ width: '200px' }}>
+                    <th
+                      className="px-4 py-3 text-left text-sm font-semibold text-gray-700 relative"
+                      style={{ width: "200px" }}
+                    >
                       Tên Khách
-                      <div onMouseDown={createResizableColumn} className="absolute right-0 top-0 h-full w-1 cursor-col-resize hover:bg-blue-500" />
+                      <div
+                        onMouseDown={createResizableColumn}
+                        className="absolute right-0 top-0 h-full w-1 cursor-col-resize hover:bg-blue-500"
+                      />
                     </th>
-                    <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700 relative" style={{ width: '180px' }}>
+                    <th
+                      className="px-4 py-3 text-left text-sm font-semibold text-gray-700 relative"
+                      style={{ width: "180px" }}
+                    >
                       Mã Vé
-                      <div onMouseDown={createResizableColumn} className="absolute right-0 top-0 h-full w-1 cursor-col-resize hover:bg-blue-500" />
+                      <div
+                        onMouseDown={createResizableColumn}
+                        className="absolute right-0 top-0 h-full w-1 cursor-col-resize hover:bg-blue-500"
+                      />
                     </th>
-                    <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700 relative" style={{ width: '120px' }}>
+                    <th
+                      className="px-4 py-3 text-left text-sm font-semibold text-gray-700 relative"
+                      style={{ width: "120px" }}
+                    >
                       Trạng Thái
-                      <div onMouseDown={createResizableColumn} className="absolute right-0 top-0 h-full w-1 cursor-col-resize hover:bg-blue-500" />
+                      <div
+                        onMouseDown={createResizableColumn}
+                        className="absolute right-0 top-0 h-full w-1 cursor-col-resize hover:bg-blue-500"
+                      />
                     </th>
-                    <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700 relative" style={{ width: '180px' }}>
+                    <th
+                      className="px-4 py-3 text-left text-sm font-semibold text-gray-700 relative"
+                      style={{ width: "180px" }}
+                    >
                       Quét Bởi
-                      <div onMouseDown={createResizableColumn} className="absolute right-0 top-0 h-full w-1 cursor-col-resize hover:bg-blue-500" />
+                      <div
+                        onMouseDown={createResizableColumn}
+                        className="absolute right-0 top-0 h-full w-1 cursor-col-resize hover:bg-blue-500"
+                      />
                     </th>
-                    <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700 relative" style={{ width: '160px' }}>
+                    <th
+                      className="px-4 py-3 text-left text-sm font-semibold text-gray-700 relative"
+                      style={{ width: "160px" }}
+                    >
                       Ngày Tạo
-                      <div onMouseDown={createResizableColumn} className="absolute right-0 top-0 h-full w-1 cursor-col-resize hover:bg-blue-500" />
+                      <div
+                        onMouseDown={createResizableColumn}
+                        className="absolute right-0 top-0 h-full w-1 cursor-col-resize hover:bg-blue-500"
+                      />
                     </th>
-                    <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700" style={{ width: '160px' }}>
+                    <th
+                      className="px-4 py-3 text-left text-sm font-semibold text-gray-700"
+                      style={{ width: "160px" }}
+                    >
                       Ngày Check-in
                     </th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-200">
-                  {ticketsLoading && (
+                  {ticketsLoading &&
                     Array.from({ length: 8 }).map((_, i) => (
                       <tr key={`all-skeleton-${i}`} className="animate-pulse">
-                        <td className="px-4 py-3"><div className="h-4 bg-gray-200 rounded w-40"></div></td>
-                        <td className="px-4 py-3"><div className="h-3 bg-gray-200 rounded w-32"></div></td>
-                        <td className="px-4 py-3"><div className="h-5 bg-gray-200 rounded w-20"></div></td>
-                        <td className="px-4 py-3"><div className="h-4 bg-gray-200 rounded w-44"></div></td>
-                        <td className="px-4 py-3"><div className="h-4 bg-gray-200 rounded w-36"></div></td>
-                        <td className="px-4 py-3"><div className="h-4 bg-gray-200 rounded w-36"></div></td>
+                        <td className="px-4 py-3">
+                          <div className="h-4 bg-gray-200 rounded w-40"></div>
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="h-3 bg-gray-200 rounded w-32"></div>
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="h-5 bg-gray-200 rounded w-20"></div>
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="h-4 bg-gray-200 rounded w-44"></div>
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="h-4 bg-gray-200 rounded w-36"></div>
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="h-4 bg-gray-200 rounded w-36"></div>
+                        </td>
                       </tr>
-                    ))
-                  )}
-                  {!ticketsLoading && getFilteredTickets().map((ticket) => (
-                    <tr key={ticket.id} className="hover:bg-gray-50">
-                      <td className="px-4 py-3 text-sm text-gray-800 overflow-hidden text-ellipsis whitespace-nowrap">
-                        {ticket.name}
-                      </td>
-                      <td className="px-4 py-3 text-xs font-mono text-gray-600 overflow-hidden text-ellipsis whitespace-nowrap" title={ticket.ticket_id}>
-                        {ticket.ticket_id.substring(0, 13)}...
-                      </td>
-                      <td className="px-4 py-3 overflow-hidden text-ellipsis whitespace-nowrap">
-                        <span
-                          className={`px-3 py-1 rounded-full text-xs font-semibold ${
-                            ticket.status === 'used'
-                              ? 'bg-yellow-100 text-yellow-800'
-                              : 'bg-green-100 text-green-800'
-                          }`}
+                    ))}
+                  {!ticketsLoading &&
+                    getFilteredTickets().map((ticket) => (
+                      <tr key={ticket.id} className="hover:bg-gray-50">
+                        <td className="px-4 py-3 text-sm text-gray-800 overflow-hidden text-ellipsis whitespace-nowrap">
+                          {ticket.name}
+                        </td>
+                        <td
+                          className="px-4 py-3 text-xs font-mono text-gray-600 overflow-hidden text-ellipsis whitespace-nowrap"
+                          title={ticket.ticket_id}
                         >
-                          {ticket.status === 'used' ? 'ĐÃ DÙNG' : 'CHƯA DÙNG'}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3 text-sm text-gray-600 overflow-hidden text-ellipsis whitespace-nowrap">
-                        {ticket.scanned_by_email || '-'}
-                      </td>
-                      <td className="px-4 py-3 text-sm text-gray-600 overflow-hidden text-ellipsis whitespace-nowrap">
-                        {formatDateTime(ticket.created_at)}
-                      </td>
-                      <td className="px-4 py-3 text-sm text-gray-600 overflow-hidden text-ellipsis whitespace-nowrap">
-                        {ticket.checked_in_at
-                          ? formatDateTime(ticket.checked_in_at)
-                          : '-'}
-                      </td>
-                    </tr>
-                  ))}
+                          {ticket.ticket_id.substring(0, 13)}...
+                        </td>
+                        <td className="px-4 py-3 overflow-hidden text-ellipsis whitespace-nowrap">
+                          <span
+                            className={`px-3 py-1 rounded-full text-xs font-semibold ${
+                              ticket.status === "used"
+                                ? "bg-yellow-100 text-yellow-800"
+                                : "bg-green-100 text-green-800"
+                            }`}
+                          >
+                            {ticket.status === "used" ? "ĐÃ DÙNG" : "CHƯA DÙNG"}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-sm text-gray-600 overflow-hidden text-ellipsis whitespace-nowrap">
+                          {ticket.scanned_by_email || "-"}
+                        </td>
+                        <td className="px-4 py-3 text-sm text-gray-600 overflow-hidden text-ellipsis whitespace-nowrap">
+                          {formatDateTime(ticket.created_at)}
+                        </td>
+                        <td className="px-4 py-3 text-sm text-gray-600 overflow-hidden text-ellipsis whitespace-nowrap">
+                          {ticket.checked_in_at
+                            ? formatDateTime(ticket.checked_in_at)
+                            : "-"}
+                        </td>
+                      </tr>
+                    ))}
                 </tbody>
               </table>
               {!ticketsLoading && getFilteredTickets().length === 0 && (
@@ -750,38 +955,75 @@ export default function AdminDashboard() {
           <div className="bg-white rounded-lg shadow-md p-6">
             <div className="flex justify-between items-center mb-6">
               <div>
-                <h2 className="text-2xl font-bold text-gray-800">Lịch Sử Quét Vé</h2>
-                <p className="text-sm text-gray-600 mt-1">Xem nhân viên nào quét vé nào</p>
+                <h2 className="text-2xl font-bold text-gray-800">
+                  Lịch Sử Quét Vé
+                </h2>
+                <p className="text-sm text-gray-600 mt-1">
+                  Xem nhân viên nào quét vé nào
+                </p>
               </div>
               <button
                 onClick={() => fetchScanLogs()}
                 disabled={scanLogsLoading}
-                className={`px-4 py-2 rounded-lg transition flex items-center gap-2 ${scanLogsLoading ? 'bg-blue-300 cursor-not-allowed text-white' : 'bg-blue-600 hover:bg-blue-700 text-white'}`}
+                className={`px-4 py-2 rounded-lg transition flex items-center gap-2 ${
+                  scanLogsLoading
+                    ? "bg-blue-300 cursor-not-allowed text-white"
+                    : "bg-blue-600 hover:bg-blue-700 text-white"
+                }`}
               >
                 {scanLogsLoading ? (
-                  <svg className="w-4 h-4 animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" strokeWidth="4"></circle>
-                    <path className="opacity-75" d="M4 12a8 8 0 018-8" strokeWidth="4"></path>
+                  <svg
+                    className="w-4 h-4 animate-spin"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                  >
+                    <circle
+                      className="opacity-25"
+                      cx="12"
+                      cy="12"
+                      r="10"
+                      strokeWidth="4"
+                    ></circle>
+                    <path
+                      className="opacity-75"
+                      d="M4 12a8 8 0 018-8"
+                      strokeWidth="4"
+                    ></path>
                   </svg>
                 ) : (
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                  <svg
+                    className="w-4 h-4"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+                    />
                   </svg>
                 )}
-                {scanLogsLoading ? 'Đang tải...' : 'Làm Mới'}
+                {scanLogsLoading ? "Đang tải..." : "Làm Mới"}
               </button>
             </div>
-            
+
             {/* Summary Stats */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
               <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-                <p className="text-sm text-green-600 font-semibold">Tổng vé đã check-in</p>
+                <p className="text-sm text-green-600 font-semibold">
+                  Tổng vé đã check-in
+                </p>
                 <p className="text-2xl font-bold text-green-800">
                   {scanLogs.length}
                 </p>
               </div>
               <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                <p className="text-sm text-blue-600 font-semibold">Tổng vé đã bán</p>
+                <p className="text-sm text-blue-600 font-semibold">
+                  Tổng vé đã bán
+                </p>
                 <p className="text-2xl font-bold text-blue-800">
                   {tickets.length}
                 </p>
@@ -791,56 +1033,97 @@ export default function AdminDashboard() {
               <table className="w-full table-fixed">
                 <thead className="bg-gray-50 border-b border-gray-200">
                   <tr>
-                    <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700 relative" style={{ width: '200px' }}>
+                    <th
+                      className="px-4 py-3 text-left text-sm font-semibold text-gray-700 relative"
+                      style={{ width: "200px" }}
+                    >
                       Tên Khách
-                      <div onMouseDown={createResizableColumn} className="absolute right-0 top-0 h-full w-1 cursor-col-resize hover:bg-blue-500" />
+                      <div
+                        onMouseDown={createResizableColumn}
+                        className="absolute right-0 top-0 h-full w-1 cursor-col-resize hover:bg-blue-500"
+                      />
                     </th>
-                    <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700 relative" style={{ width: '150px' }}>
+                    <th
+                      className="px-4 py-3 text-left text-sm font-semibold text-gray-700 relative"
+                      style={{ width: "150px" }}
+                    >
                       Mã Vé
-                      <div onMouseDown={createResizableColumn} className="absolute right-0 top-0 h-full w-1 cursor-col-resize hover:bg-blue-500" />
+                      <div
+                        onMouseDown={createResizableColumn}
+                        className="absolute right-0 top-0 h-full w-1 cursor-col-resize hover:bg-blue-500"
+                      />
                     </th>
-                    <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700 relative" style={{ width: '200px' }}>
+                    <th
+                      className="px-4 py-3 text-left text-sm font-semibold text-gray-700 relative"
+                      style={{ width: "200px" }}
+                    >
                       Quét Bởi
-                      <div onMouseDown={createResizableColumn} className="absolute right-0 top-0 h-full w-1 cursor-col-resize hover:bg-blue-500" />
+                      <div
+                        onMouseDown={createResizableColumn}
+                        className="absolute right-0 top-0 h-full w-1 cursor-col-resize hover:bg-blue-500"
+                      />
                     </th>
-                    <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700 relative" style={{ width: '120px' }}>
+                    <th
+                      className="px-4 py-3 text-left text-sm font-semibold text-gray-700 relative"
+                      style={{ width: "120px" }}
+                    >
                       Trạng Thái
-                      <div onMouseDown={createResizableColumn} className="absolute right-0 top-0 h-full w-1 cursor-col-resize hover:bg-blue-500" />
+                      <div
+                        onMouseDown={createResizableColumn}
+                        className="absolute right-0 top-0 h-full w-1 cursor-col-resize hover:bg-blue-500"
+                      />
                     </th>
-                    <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700" style={{ width: '180px' }}>
+                    <th
+                      className="px-4 py-3 text-left text-sm font-semibold text-gray-700"
+                      style={{ width: "180px" }}
+                    >
                       Thời Gian Quét
                     </th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-200">
-                  {scanLogsLoading && (
+                  {scanLogsLoading &&
                     Array.from({ length: 8 }).map((_, i) => (
                       <tr key={`logs-skeleton-${i}`} className="animate-pulse">
-                        <td className="px-4 py-3"><div className="h-4 bg-gray-200 rounded w-40"></div></td>
-                        <td className="px-4 py-3"><div className="h-3 bg-gray-200 rounded w-24"></div></td>
-                        <td className="px-4 py-3"><div className="h-4 bg-gray-200 rounded w-44"></div></td>
-                        <td className="px-4 py-3"><div className="h-5 bg-gray-200 rounded w-20"></div></td>
-                        <td className="px-4 py-3"><div className="h-4 bg-gray-200 rounded w-36"></div></td>
+                        <td className="px-4 py-3">
+                          <div className="h-4 bg-gray-200 rounded w-40"></div>
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="h-3 bg-gray-200 rounded w-24"></div>
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="h-4 bg-gray-200 rounded w-44"></div>
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="h-5 bg-gray-200 rounded w-20"></div>
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="h-4 bg-gray-200 rounded w-36"></div>
+                        </td>
                       </tr>
-                    ))
-                  )}
-                  {!scanLogsLoading && scanLogs.map((log) => (
-                    <tr key={log.id} className="hover:bg-gray-50">
-                      <td className="px-4 py-3 text-sm text-gray-800 overflow-hidden text-ellipsis whitespace-nowrap">{log.tickets.name}</td>
-                      <td className="px-4 py-3 text-xs font-mono text-gray-600 overflow-hidden text-ellipsis whitespace-nowrap">
-                        {log.ticket_id.substring(0, 8)}...
-                      </td>
-                      <td className="px-4 py-3 text-sm text-gray-700 overflow-hidden text-ellipsis whitespace-nowrap">{log.scanned_by_email}</td>
-                      <td className="px-4 py-3 overflow-hidden text-ellipsis whitespace-nowrap">
-                        <span className="px-3 py-1 rounded-full text-xs font-semibold bg-green-100 text-green-800">
-                          ĐÃ DUYỆT
-                        </span>
-                      </td>
-                      <td className="px-4 py-3 text-sm text-gray-600">
-                        {formatDateTime(log.scanned_at)}
-                      </td>
-                    </tr>
-                  ))}
+                    ))}
+                  {!scanLogsLoading &&
+                    scanLogs.map((log) => (
+                      <tr key={log.id} className="hover:bg-gray-50">
+                        <td className="px-4 py-3 text-sm text-gray-800 overflow-hidden text-ellipsis whitespace-nowrap">
+                          {log.tickets.name}
+                        </td>
+                        <td className="px-4 py-3 text-xs font-mono text-gray-600 overflow-hidden text-ellipsis whitespace-nowrap">
+                          {log.ticket_id.substring(0, 8)}...
+                        </td>
+                        <td className="px-4 py-3 text-sm text-gray-700 overflow-hidden text-ellipsis whitespace-nowrap">
+                          {log.scanned_by_email}
+                        </td>
+                        <td className="px-4 py-3 overflow-hidden text-ellipsis whitespace-nowrap">
+                          <span className="px-3 py-1 rounded-full text-xs font-semibold bg-green-100 text-green-800">
+                            ĐÃ DUYỆT
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-sm text-gray-600">
+                          {formatDateTime(log.scanned_at)}
+                        </td>
+                      </tr>
+                    ))}
                 </tbody>
               </table>
               {!scanLogsLoading && scanLogs.length === 0 && (
@@ -870,28 +1153,49 @@ export default function AdminDashboard() {
                 onClick={downloadAllQRCodes}
                 className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition flex items-center gap-2"
               >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                <svg
+                  className="w-5 h-5"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"
+                  />
                 </svg>
                 Tải Tất Cả QR
               </button>
             </div>
-            
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-h-[70vh] overflow-y-auto">
               {selectedGuestQRs.map((item, index) => (
-                <div key={index} className="border border-gray-200 rounded-lg p-4">
+                <div
+                  key={index}
+                  className="border border-gray-200 rounded-lg p-4"
+                >
                   <div className="flex flex-col items-center">
                     <div className="mb-3">
-                      <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
-                        item.ticket.status === 'used'
-                          ? 'bg-yellow-100 text-yellow-800'
-                          : 'bg-green-100 text-green-800'
-                      }`}>
-                        {item.ticket.status === 'used' ? 'ĐÃ DÙNG' : 'CHƯA DÙNG'}
+                      <span
+                        className={`px-3 py-1 rounded-full text-xs font-semibold ${
+                          item.ticket.status === "used"
+                            ? "bg-yellow-100 text-yellow-800"
+                            : "bg-green-100 text-green-800"
+                        }`}
+                      >
+                        {item.ticket.status === "used"
+                          ? "ĐÃ DÙNG"
+                          : "CHƯA DÙNG"}
                       </span>
                     </div>
                     {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={item.qrCode} alt="QR Code" className="w-48 h-48 mb-3" />
+                    <img
+                      src={item.qrCode}
+                      alt="QR Code"
+                      className="w-48 h-48 mb-3"
+                    />
                     <div className="w-full">
                       <p className="text-xs text-gray-500 mb-1">Mã Vé:</p>
                       <p className="text-xs font-mono text-gray-600 mb-2 break-all">
@@ -899,7 +1203,8 @@ export default function AdminDashboard() {
                       </p>
                       {item.ticket.checked_in_at && (
                         <p className="text-xs text-gray-500">
-                          Check-in lúc: {formatDateTime(item.ticket.checked_in_at)}
+                          Check-in lúc:{" "}
+                          {formatDateTime(item.ticket.checked_in_at)}
                         </p>
                       )}
                       <div className="flex gap-2 mt-2">
@@ -907,13 +1212,23 @@ export default function AdminDashboard() {
                           onClick={() => downloadSingleQR(item, index)}
                           className="flex-1 bg-green-600 text-white px-3 py-1 rounded text-xs hover:bg-green-700 transition flex items-center justify-center gap-1"
                         >
-                          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                          <svg
+                            className="w-3 h-3"
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth={2}
+                              d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"
+                            />
                           </svg>
                           Tải QR
                         </button>
                         <button
-                          onClick={() => window.open(item.qrUrl, '_blank')}
+                          onClick={() => window.open(item.qrUrl, "_blank")}
                           className="flex-1 bg-gray-600 text-white px-3 py-1 rounded text-xs hover:bg-gray-700 transition"
                         >
                           Mở vé
@@ -924,7 +1239,7 @@ export default function AdminDashboard() {
                 </div>
               ))}
             </div>
-            
+
             <button
               onClick={() => {
                 setShowModal(false);
@@ -940,4 +1255,3 @@ export default function AdminDashboard() {
     </div>
   );
 }
-
