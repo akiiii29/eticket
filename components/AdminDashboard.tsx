@@ -421,17 +421,17 @@ export default function AdminDashboard() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
-      <div className="max-w-7xl mx-auto p-6">
+      <div className="max-w-7xl mx-auto p-4 sm:p-6">
         {/* Header */}
         <div className="bg-white rounded-lg shadow-md p-6 mb-6">
-          <div className="flex justify-between items-center">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
             <div>
               <h1 className="text-3xl font-bold text-gray-800">
                 Rise Team Ticket Check-in
               </h1>
               <p className="text-gray-600 mt-1">Quản lý vé sự kiện</p>
             </div>
-            <div className="flex gap-3">
+            <div className="flex flex-wrap gap-3 justify-start lg:justify-end">
               <button
                 onClick={() => {
                   setShowAllTickets(!showAllTickets);
@@ -492,7 +492,7 @@ export default function AdminDashboard() {
             Tạo Vé Mới
           </h2>
           <form onSubmit={handleCreateTicket}>
-            <div className="flex gap-4 mb-4">
+            <div className="flex flex-col gap-4 mb-4 lg:flex-row">
               <div className="flex-1">
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Tên Khách
@@ -506,7 +506,7 @@ export default function AdminDashboard() {
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
                 />
               </div>
-              <div className="w-40">
+              <div className="w-full md:w-52">
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Số Lượng Vé
                 </label>
@@ -532,11 +532,11 @@ export default function AdminDashboard() {
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
                 />
               </div>
-              <div className="flex items-end">
+              <div className="flex items-end w-full lg:w-auto">
                 <button
                   type="submit"
                   disabled={loading}
-                  className="bg-blue-600 text-white px-6 py-2 rounded-lg font-semibold hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition whitespace-nowrap"
+                  className="w-full md:w-auto bg-blue-600 text-white px-6 py-2 rounded-lg font-semibold hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition whitespace-nowrap"
                 >
                   {loading
                     ? "Đang tạo..."
@@ -607,8 +607,8 @@ export default function AdminDashboard() {
               {ticketsLoading ? "Đang tải..." : "Làm Mới"}
             </button>
           </div>
-          <div className="overflow-x-auto">
-            <table className="w-full table-fixed">
+          <div className="overflow-x-auto -mx-4 sm:mx-0">
+            <table className="w-full table-fixed min-w-[640px]">
               <thead className="bg-gray-50 border-b border-gray-200">
                 <tr>
                   <th
@@ -737,7 +737,7 @@ export default function AdminDashboard() {
             </div>
 
             {/* Search and Filters */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
               <div className="lg:col-span-2">
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Tìm Kiếm
@@ -817,8 +817,8 @@ export default function AdminDashboard() {
             </div>
 
             {/* All Tickets Table */}
-            <div className="overflow-x-auto">
-              <table className="w-full table-fixed">
+            <div className="overflow-x-auto -mx-4 sm:mx-0">
+              <table className="w-full table-fixed min-w-[720px]">
                 <thead className="bg-gray-50 border-b border-gray-200">
                   <tr>
                     <th
@@ -1029,8 +1029,8 @@ export default function AdminDashboard() {
                 </p>
               </div>
             </div>
-            <div className="overflow-x-auto">
-              <table className="w-full table-fixed">
+            <div className="overflow-x-auto -mx-4 sm:mx-0">
+              <table className="w-full table-fixed min-w-[640px]">
                 <thead className="bg-gray-50 border-b border-gray-200">
                   <tr>
                     <th
@@ -1138,8 +1138,8 @@ export default function AdminDashboard() {
 
       {/* QR Codes Modal */}
       {showModal && selectedGuestQRs.length > 0 && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50 overflow-y-auto">
-          <div className="bg-white rounded-lg p-8 max-w-4xl w-full my-8">
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-start sm:items-center justify-center p-4 z-50 overflow-y-auto">
+          <div className="bg-white rounded-lg p-4 sm:p-8 max-w-4xl w-full my-8">
             <div className="flex justify-between items-start mb-6">
               <div>
                 <h3 className="text-2xl font-semibold mb-2 text-gray-800">
@@ -1194,7 +1194,7 @@ export default function AdminDashboard() {
                     <img
                       src={item.qrCode}
                       alt="QR Code"
-                      className="w-48 h-48 mb-3"
+                      className="w-40 h-40 sm:w-48 sm:h-48 mb-3"
                     />
                     <div className="w-full">
                       <p className="text-xs text-gray-500 mb-1">Mã Vé:</p>
