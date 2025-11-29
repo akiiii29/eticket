@@ -18,7 +18,7 @@ export default function LoginPage() {
 
     try {
       const supabase = createClient();
-      
+
       const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password,
@@ -31,22 +31,10 @@ export default function LoginPage() {
       }
 
       if (data.user) {
-        // Get user profile to check role
-        const { data: profile } = await supabase
-          .from('profiles')
-          .select('role')
-          .eq('id', data.user.id)
-          .single();
-
-        // Redirect based on role
-        if (profile?.role === 'admin') {
-          router.push('/admin');
-        } else if (profile?.role === 'staff') {
-          router.push('/scanner');
-        } else {
-          setError('Không tìm thấy vai trò người dùng');
-          setLoading(false);
-        }
+        // Profile role check is handled by middleware and cached
+        // Just redirect to admin page, middleware will handle role-based routing
+        router.push('/admin');
+        router.refresh();
       }
     } catch (err) {
       setError('Đã xảy ra lỗi không mong muốn');
@@ -59,7 +47,7 @@ export default function LoginPage() {
       <div className="bg-white p-8 rounded-lg shadow-xl w-full max-w-md">
         <h1 className="text-3xl font-bold text-center mb-2 text-gray-800">Quản Lý Vé Fes</h1>
         <p className="text-center text-gray-600 mb-8">Staff & Admin only</p>
-        
+
         <form onSubmit={handleLogin} className="space-y-6">
           <div>
             <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-2">
@@ -106,7 +94,7 @@ export default function LoginPage() {
           </button>
         </form>
 
-        
+
       </div>
     </div>
   );

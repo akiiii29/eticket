@@ -1,6 +1,7 @@
 import { createClient } from '@/utils/supabase/server';
 import { redirect } from 'next/navigation';
 import AdminDashboard from '@/components/AdminDashboard';
+import { getCachedUserProfile } from '@/utils/profileCache';
 
 export default async function AdminPage() {
   const supabase = await createClient();
@@ -13,13 +14,10 @@ export default async function AdminPage() {
     redirect('/login');
   }
 
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('role')
-    .eq('id', user.id)
-    .single();
+  // Use cached profile lookup for faster page load
+  const role = await getCachedUserProfile(user.id);
 
-  if (profile?.role !== 'admin') {
+  if (role !== 'admin') {
     redirect('/scanner');
   }
 

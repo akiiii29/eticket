@@ -3,44 +3,27 @@
 import { useState, useEffect } from "react";
 import { createClient } from "@/utils/supabase/client";
 import { useRouter } from "next/navigation";
-import { formatDateTime, formatDate, formatTime } from "@/utils/dateUtils";
-
-interface Ticket {
-  id: number;
-  ticket_id: string;
-  name: string;
-  batch_id: string;
-  status: string;
-  created_at: string;
-  checked_in_at: string | null;
-}
-
-interface ScanLog {
-  id: number;
-  ticket_id: string;
-  scanned_by: string;
-  scanned_by_email: string;
-  status: string;
-  scanned_at: string;
-  tickets: {
-    name: string;
-    ticket_id: string;
-  };
-}
-
-interface TicketBatch {
-  batchId: string;
-  guestName: string;
-  tickets: Ticket[];
-  totalTickets: number;
-  usedTickets: number;
-  unusedTickets: number;
-  createdAt: string;
-}
-
-interface TicketWithScan extends Ticket {
-  scanned_by_email?: string;
-}
+import { formatDateTime, formatDate } from "@/utils/dateUtils";
+import {
+  exportTicketsToCSV,
+  exportScanLogsToCSV,
+  formatCurrency,
+  TICKET_PRICE,
+} from "@/utils/exportUtils";
+import { generateBrandedQR } from "@/utils/qrUtils";
+import {
+  Ticket,
+  ScanLog,
+  TicketBatch,
+  TicketWithScan,
+} from "./dashboard/types";
+import DashboardHeader from "./dashboard/DashboardHeader";
+import StatsCards from "./dashboard/StatsCards";
+import CreateTicketForm from "./dashboard/CreateTicketForm";
+import GuestTicketTable from "./dashboard/GuestTicketTable";
+import AllTicketsTable from "./dashboard/AllTicketsTable";
+import ScanLogsTable from "./dashboard/ScanLogsTable";
+import QRCodeModal from "./dashboard/QRCodeModal";
 
 export default function AdminDashboard() {
   const [tickets, setTickets] = useState<Ticket[]>([]);
@@ -70,84 +53,6 @@ export default function AdminDashboard() {
 
   const quantityNumber = parseInt(quantity || "0", 10) || 0;
 
-  // Generate QR code and overlay center logo using canvas
-  const generateBrandedQR = async (
-    qrUrl: string,
-    size = 512
-  ): Promise<string> => {
-    const QRCode = (await import("qrcode")).default;
-    const canvas = document.createElement("canvas");
-    canvas.width = size;
-    canvas.height = size;
-    await QRCode.toCanvas(canvas, qrUrl, {
-      width: size,
-      margin: 2,
-      color: { dark: "#000000", light: "#FFFFFF" },
-      errorCorrectionLevel: "H",
-    } as any);
-
-    try {
-      const ctx = canvas.getContext("2d");
-      if (!ctx) return canvas.toDataURL("image/png");
-
-      const logo = await new Promise<HTMLImageElement>((resolve, reject) => {
-        const img = new Image();
-        img.crossOrigin = "anonymous";
-        img.onload = () => resolve(img);
-        img.onerror = reject;
-        // In Next.js, assets in /public are served from root path
-        img.src = "/logo.png";
-      });
-
-      const logoScale = 0.22; // 22% of QR size
-      const logoSize = Math.floor(size * logoScale);
-      const x = Math.floor((size - logoSize) / 2);
-      const y = Math.floor((size - logoSize) / 2);
-
-      // Draw a white rounded background under the logo to keep QR scannable
-      const radius = Math.floor(logoSize * 0.2);
-      ctx.save();
-      ctx.fillStyle = "#FFFFFF";
-      ctx.beginPath();
-      ctx.moveTo(x + radius, y);
-      ctx.lineTo(x + logoSize - radius, y);
-      ctx.quadraticCurveTo(x + logoSize, y, x + logoSize, y + radius);
-      ctx.lineTo(x + logoSize, y + logoSize - radius);
-      ctx.quadraticCurveTo(
-        x + logoSize,
-        y + logoSize,
-        x + logoSize - radius,
-        y + logoSize
-      );
-      ctx.lineTo(x + radius, y + logoSize);
-      ctx.quadraticCurveTo(x, y + logoSize, x, y + logoSize - radius);
-      ctx.lineTo(x, y + radius);
-      ctx.quadraticCurveTo(x, y, x + radius, y);
-      ctx.closePath();
-      ctx.fill();
-      ctx.restore();
-
-      // Draw the logo image centered, preserve aspect ratio and add padding inside the rounded box
-      const padding = Math.floor(logoSize * 0.12);
-      const maxInner = logoSize - padding * 2;
-      const aspect = logo.width / logo.height || 1;
-      let drawW = maxInner;
-      let drawH = Math.floor(maxInner / aspect);
-      if (drawH > maxInner) {
-        drawH = maxInner;
-        drawW = Math.floor(maxInner * aspect);
-      }
-      const drawX = x + Math.floor((logoSize - drawW) / 2);
-      const drawY = y + Math.floor((logoSize - drawH) / 2);
-      ctx.drawImage(logo, drawX, drawY, drawW, drawH);
-
-      return canvas.toDataURL("image/png");
-    } catch {
-      // If logo fails to load, return plain QR
-      return canvas.toDataURL("image/png");
-    }
-  };
-
   // Column resize handler
   const createResizableColumn = (e: React.MouseEvent<HTMLDivElement>) => {
     const th = (e.target as HTMLElement).parentElement as HTMLTableCellElement;
@@ -171,7 +76,17 @@ export default function AdminDashboard() {
   useEffect(() => {
     fetchTickets();
     fetchScanLogs();
-  }, []);
+
+    // Real-time stats auto-refresh every 30 seconds
+    const interval = setInterval(() => {
+      fetchTickets();
+      if (showScanLogs) {
+        fetchScanLogs();
+      }
+    }, 30000);
+
+    return () => clearInterval(interval);
+  }, [showScanLogs]);
 
   const fetchTickets = async (page = 0, limit = 100) => {
     if (page === 0) setTicketsLoading(true);
@@ -274,9 +189,6 @@ export default function AdminDashboard() {
       // Generate a single batch_id for all tickets in this creation
       const batchId = crypto.randomUUID();
 
-      // Import QRCode library
-      const QRCode = (await import("qrcode")).default;
-
       // Create multiple tickets for the same guest with same batch_id
       for (let i = 0; i < quantityNumber; i++) {
         const response = await fetch("/api/tickets", {
@@ -325,11 +237,6 @@ export default function AdminDashboard() {
     router.push("/login");
   };
 
-  const copyToClipboard = (text: string) => {
-    navigator.clipboard.writeText(text);
-    alert("Đã sao chép vào clipboard!");
-  };
-
   const downloadSingleQR = async (
     item: { qrCode: string; qrUrl: string; ticket: Ticket },
     index: number
@@ -340,9 +247,10 @@ export default function AdminDashboard() {
     // Create download link
     const link = document.createElement("a");
     link.href = highResQR;
-    link.download = `${item.ticket.name}_ve_${
-      index + 1
-    }_${item.ticket.ticket_id.substring(0, 8)}.png`;
+    link.download = `${item.ticket.name}_ve_${index + 1}_${item.ticket.ticket_id.substring(
+      0,
+      8
+    )}.png`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -403,7 +311,6 @@ export default function AdminDashboard() {
     setShowModal(false);
 
     const appUrl = "https://riseteam-ticket.vercel.app/";
-    const QRCode = (await import("qrcode")).default;
 
     const batchTickets = tickets.filter((t) => t.batch_id === batchId);
 
@@ -419,839 +326,100 @@ export default function AdminDashboard() {
     setShowModal(true);
   };
 
+  // Calculate statistics
+  const totalTickets = ticketBatches.reduce(
+    (sum, batch) => sum + batch.totalTickets,
+    0
+  );
+  const usedTickets = ticketBatches.reduce(
+    (sum, batch) => sum + batch.usedTickets,
+    0
+  );
+  const unusedTickets = ticketBatches.reduce(
+    (sum, batch) => sum + batch.unusedTickets,
+    0
+  );
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
+    <div style={{ minHeight: "100vh", background: "linear-gradient(135deg, #E7F5FF 0%, #F8F9FA 100%)" }}>
       <div className="max-w-7xl mx-auto p-4 sm:p-6">
-        {/* Header */}
-        <div className="bg-white rounded-lg shadow-md p-6 mb-6">
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-            <div>
-              <h1 className="text-3xl font-bold text-gray-800">
-                Rise Team Ticket Check-in
-              </h1>
-              <p className="text-gray-600 mt-1">Quản lý vé sự kiện</p>
-            </div>
-            <div className="flex flex-wrap gap-3 justify-start lg:justify-end">
-              <button
-                onClick={() => {
-                  setShowAllTickets(!showAllTickets);
-                  if (!showAllTickets) fetchScanLogs();
-                }}
-                className="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 transition flex items-center gap-2"
-              >
-                <svg
-                  className="w-5 h-5"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M4 6h16M4 10h16M4 14h16M4 18h16"
-                  />
-                </svg>
-                {showAllTickets ? "Ẩn" : "Tất Cả"} Vé
-              </button>
-              <button
-                onClick={() => {
-                  setShowScanLogs(!showScanLogs);
-                  if (!showScanLogs) fetchScanLogs();
-                }}
-                className="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 transition flex items-center gap-2"
-              >
-                <svg
-                  className="w-5 h-5"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
-                  />
-                </svg>
-                {showScanLogs ? "Ẩn" : "Xem"} Lịch Sử Quét
-              </button>
-              <button
-                onClick={handleLogout}
-                className="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 transition"
-              >
-                Đăng Xuất
-              </button>
-            </div>
-          </div>
-        </div>
+        <DashboardHeader
+          showAllTickets={showAllTickets}
+          setShowAllTickets={setShowAllTickets}
+          showScanLogs={showScanLogs}
+          setShowScanLogs={setShowScanLogs}
+          handleLogout={handleLogout}
+          fetchScanLogs={fetchScanLogs}
+        />
 
-        {/* Create Ticket Form */}
-        <div className="bg-white rounded-lg shadow-md p-6 mb-6">
-          <h2 className="text-xl font-semibold mb-4 text-gray-800">
-            Tạo Vé Mới
-          </h2>
-          <form onSubmit={handleCreateTicket}>
-            <div className="flex flex-col gap-4 mb-4 lg:flex-row">
-              <div className="flex-1">
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Tên Khách
-                </label>
-                <input
-                  type="text"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  placeholder="Nhập tên khách"
-                  required
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
-                />
-              </div>
-              <div className="w-full md:w-52">
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Số Lượng Vé
-                </label>
-                <input
-                  type="number"
-                  value={quantity}
-                  onChange={(e) => {
-                    const val = e.target.value;
-                    // Allow only digits (empty string is OK so user can clear)
-                    if (/^\d*$/.test(val)) {
-                      setQuantity(val);
-                    }
-                  }}
-                  onKeyDown={(e) => {
-                    // Block non-numeric special keys like e, +, -, .
-                    if (["e", "E", "+", "-", "."].includes(e.key)) {
-                      e.preventDefault();
-                    }
-                  }}
-                  min="0"
-                  max="100"
-                  required
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
-                />
-              </div>
-              <div className="flex items-end w-full lg:w-auto">
-                <button
-                  type="submit"
-                  disabled={loading}
-                  className="w-full md:w-auto bg-blue-600 text-white px-6 py-2 rounded-lg font-semibold hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition whitespace-nowrap"
-                >
-                  {loading
-                    ? "Đang tạo..."
-                    : quantityNumber >= 1
-                    ? `Tạo ${quantityNumber} Vé`
-                    : "Tạo Vé"}
-                </button>
-              </div>
-            </div>
-          </form>
-          {error && (
-            <div className="mt-4 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">
-              {error}
-            </div>
-          )}
-        </div>
+        <StatsCards
+          totalTickets={totalTickets}
+          usedTickets={usedTickets}
+          unusedTickets={unusedTickets}
+          ticketBatches={ticketBatches}
+          formatCurrency={formatCurrency}
+          TICKET_PRICE={TICKET_PRICE}
+        />
 
-        {/* Tickets by Guest */}
-        <div className="bg-white rounded-lg shadow-md p-6">
-          <div className="flex justify-between items-center mb-4">
-            <h2 className="text-xl font-semibold text-gray-800">
-              Vé Theo Khách
-            </h2>
-            <button
-              onClick={() => fetchTickets()}
-              disabled={ticketsLoading}
-              className={`text-sm flex items-center gap-2 ${
-                ticketsLoading
-                  ? "text-gray-400 cursor-not-allowed"
-                  : "text-blue-600 hover:text-blue-800"
-              }`}
-            >
-              {ticketsLoading ? (
-                <svg
-                  className="w-4 h-4 animate-spin"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                >
-                  <circle
-                    className="opacity-25"
-                    cx="12"
-                    cy="12"
-                    r="10"
-                    strokeWidth="4"
-                  ></circle>
-                  <path
-                    className="opacity-75"
-                    d="M4 12a8 8 0 018-8"
-                    strokeWidth="4"
-                  ></path>
-                </svg>
-              ) : (
-                <svg
-                  className="w-4 h-4"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
-                  />
-                </svg>
-              )}
-              {ticketsLoading ? "Đang tải..." : "Làm Mới"}
-            </button>
-          </div>
-          <div className="overflow-x-auto -mx-4 sm:mx-0">
-            <table className="w-full table-fixed min-w-[640px]">
-              <thead className="bg-gray-50 border-b border-gray-200">
-                <tr>
-                  <th
-                    className="px-4 py-3 text-left text-sm font-semibold text-gray-700 relative"
-                    style={{ width: "250px" }}
-                  >
-                    Tên Khách
-                    <div
-                      onMouseDown={createResizableColumn}
-                      className="absolute right-0 top-0 h-full w-1 cursor-col-resize hover:bg-blue-500"
-                    />
-                  </th>
-                  <th
-                    className="px-4 py-3 text-left text-sm font-semibold text-gray-700 relative"
-                    style={{ width: "120px" }}
-                  >
-                    Tổng
-                    <div
-                      onMouseDown={createResizableColumn}
-                      className="absolute right-0 top-0 h-full w-1 cursor-col-resize hover:bg-blue-500"
-                    />
-                  </th>
-                  <th
-                    className="px-4 py-3 text-left text-sm font-semibold text-gray-700 relative"
-                    style={{ width: "120px" }}
-                  >
-                    Đã Dùng
-                    <div
-                      onMouseDown={createResizableColumn}
-                      className="absolute right-0 top-0 h-full w-1 cursor-col-resize hover:bg-blue-500"
-                    />
-                  </th>
-                  <th
-                    className="px-4 py-3 text-left text-sm font-semibold text-gray-700 relative"
-                    style={{ width: "120px" }}
-                  >
-                    Chưa Dùng
-                    <div
-                      onMouseDown={createResizableColumn}
-                      className="absolute right-0 top-0 h-full w-1 cursor-col-resize hover:bg-blue-500"
-                    />
-                  </th>
-                  <th
-                    className="px-4 py-3 text-left text-sm font-semibold text-gray-700"
-                    style={{ width: "150px" }}
-                  >
-                    Thao Tác
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-200">
-                {ticketsLoading &&
-                  ticketBatches.length === 0 &&
-                  Array.from({ length: 6 }).map((_, i) => (
-                    <tr key={`skeleton-${i}`} className="animate-pulse">
-                      <td className="px-4 py-3">
-                        <div className="h-4 bg-gray-200 rounded w-40 mb-2"></div>
-                        <div className="h-3 bg-gray-100 rounded w-24"></div>
-                      </td>
-                      <td className="px-4 py-3">
-                        <div className="h-5 bg-gray-200 rounded w-12"></div>
-                      </td>
-                      <td className="px-4 py-3">
-                        <div className="h-5 bg-gray-200 rounded w-12"></div>
-                      </td>
-                      <td className="px-4 py-3">
-                        <div className="h-5 bg-gray-200 rounded w-12"></div>
-                      </td>
-                      <td className="px-4 py-3">
-                        <div className="h-8 bg-gray-200 rounded w-20"></div>
-                      </td>
-                    </tr>
-                  ))}
-                {!ticketsLoading &&
-                  ticketBatches.map((batch, idx) => (
-                    <tr key={idx} className="hover:bg-gray-50">
-                      <td className="px-4 py-3 text-sm font-semibold text-gray-800 overflow-hidden text-ellipsis whitespace-nowrap">
-                        {batch.guestName}
-                        <div className="text-xs text-gray-500 font-normal">
-                          Tạo: {formatDate(batch.createdAt)}
-                        </div>
-                      </td>
-                      <td className="px-4 py-3 text-sm text-gray-700">
-                        <span className="px-2 py-1 bg-blue-100 text-blue-800 rounded font-semibold">
-                          {batch.totalTickets}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3 text-sm text-gray-700">
-                        <span className="px-2 py-1 bg-yellow-100 text-yellow-800 rounded font-semibold">
-                          {batch.usedTickets}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3 text-sm text-gray-700">
-                        <span className="px-2 py-1 bg-green-100 text-green-800 rounded font-semibold">
-                          {batch.unusedTickets}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3">
-                        <button
-                          onClick={() => getQrCodesForBatch(batch.batchId)}
-                          className="bg-indigo-600 text-white px-3 py-1 rounded text-xs hover:bg-indigo-700 transition"
-                        >
-                          Xem Mã QR
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-              </tbody>
-            </table>
-            {ticketBatches.length === 0 && (
-              <div className="text-center py-8 text-gray-500">
-                Chưa có vé nào được tạo
-              </div>
-            )}
-          </div>
-        </div>
+        <CreateTicketForm
+          name={name}
+          setName={setName}
+          quantity={quantity}
+          setQuantity={setQuantity}
+          quantityNumber={quantityNumber}
+          loading={loading}
+          handleCreateTicket={handleCreateTicket}
+          error={error}
+        />
 
-        {/* All Tickets Table with Filters */}
-        {showAllTickets && (
-          <div className="bg-white rounded-lg shadow-md p-6 mb-6">
-            <div className="mb-6">
-              <h2 className="text-2xl font-bold text-gray-800 mb-2">
-                Tất Cả Vé
-              </h2>
-              <p className="text-sm text-gray-600">Tìm kiếm và lọc tất cả vé</p>
-            </div>
+        <GuestTicketTable
+          ticketsLoading={ticketsLoading}
+          ticketBatches={ticketBatches}
+          getQrCodesForBatch={getQrCodesForBatch}
+          formatDate={formatDate}
+          createResizableColumn={createResizableColumn}
+          fetchTickets={fetchTickets}
+        />
 
-            {/* Search and Filters */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
-              <div className="lg:col-span-2">
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Tìm Kiếm
-                </label>
-                <input
-                  type="text"
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  placeholder="Tìm theo tên, mã vé, hoặc người quét..."
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
-                />
-              </div>
+        <AllTicketsTable
+          showAllTickets={showAllTickets}
+          searchTerm={searchTerm}
+          setSearchTerm={setSearchTerm}
+          filterStatus={filterStatus}
+          setFilterStatus={setFilterStatus}
+          filterDateFrom={filterDateFrom}
+          setFilterDateFrom={setFilterDateFrom}
+          filterDateTo={filterDateTo}
+          setFilterDateTo={setFilterDateTo}
+          getFilteredTickets={getFilteredTickets}
+          tickets={tickets}
+          ticketsLoading={ticketsLoading}
+          createResizableColumn={createResizableColumn}
+          formatDateTime={formatDateTime}
+          exportTicketsToCSV={exportTicketsToCSV}
+        />
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Trạng Thái
-                </label>
-                <select
-                  value={filterStatus}
-                  onChange={(e) => setFilterStatus(e.target.value)}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
-                >
-                  <option value="all">Tất Cả</option>
-                  <option value="unused">Chưa Dùng</option>
-                  <option value="used">Đã Dùng</option>
-                </select>
-              </div>
+        <ScanLogsTable
+          showScanLogs={showScanLogs}
+          scanLogs={scanLogs}
+          scanLogsLoading={scanLogsLoading}
+          fetchScanLogs={fetchScanLogs}
+          exportScanLogsToCSV={exportScanLogsToCSV}
+          tickets={tickets}
+          createResizableColumn={createResizableColumn}
+          formatDateTime={formatDateTime}
+        />
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Từ Ngày
-                </label>
-                <input
-                  type="date"
-                  value={filterDateFrom}
-                  onChange={(e) => setFilterDateFrom(e.target.value)}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Đến Ngày
-                </label>
-                <input
-                  type="date"
-                  value={filterDateTo}
-                  onChange={(e) => setFilterDateTo(e.target.value)}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
-                />
-              </div>
-            </div>
-
-            {/* Clear Filters Button */}
-            {(searchTerm ||
-              filterStatus !== "all" ||
-              filterDateFrom ||
-              filterDateTo) && (
-              <div className="mb-4">
-                <button
-                  onClick={() => {
-                    setSearchTerm("");
-                    setFilterStatus("all");
-                    setFilterDateFrom("");
-                    setFilterDateTo("");
-                  }}
-                  className="text-sm text-gray-600 hover:text-gray-800 underline"
-                >
-                  Xóa bộ lọc
-                </button>
-              </div>
-            )}
-
-            {/* Results Count */}
-            <div className="mb-4 text-sm text-gray-600">
-              Hiển thị {getFilteredTickets().length} / {tickets.length} vé
-            </div>
-
-            {/* All Tickets Table */}
-            <div className="overflow-x-auto -mx-4 sm:mx-0">
-              <table className="w-full table-fixed min-w-[720px]">
-                <thead className="bg-gray-50 border-b border-gray-200">
-                  <tr>
-                    <th
-                      className="px-4 py-3 text-left text-sm font-semibold text-gray-700 relative"
-                      style={{ width: "200px" }}
-                    >
-                      Tên Khách
-                      <div
-                        onMouseDown={createResizableColumn}
-                        className="absolute right-0 top-0 h-full w-1 cursor-col-resize hover:bg-blue-500"
-                      />
-                    </th>
-                    <th
-                      className="px-4 py-3 text-left text-sm font-semibold text-gray-700 relative"
-                      style={{ width: "180px" }}
-                    >
-                      Mã Vé
-                      <div
-                        onMouseDown={createResizableColumn}
-                        className="absolute right-0 top-0 h-full w-1 cursor-col-resize hover:bg-blue-500"
-                      />
-                    </th>
-                    <th
-                      className="px-4 py-3 text-left text-sm font-semibold text-gray-700 relative"
-                      style={{ width: "120px" }}
-                    >
-                      Trạng Thái
-                      <div
-                        onMouseDown={createResizableColumn}
-                        className="absolute right-0 top-0 h-full w-1 cursor-col-resize hover:bg-blue-500"
-                      />
-                    </th>
-                    <th
-                      className="px-4 py-3 text-left text-sm font-semibold text-gray-700 relative"
-                      style={{ width: "180px" }}
-                    >
-                      Quét Bởi
-                      <div
-                        onMouseDown={createResizableColumn}
-                        className="absolute right-0 top-0 h-full w-1 cursor-col-resize hover:bg-blue-500"
-                      />
-                    </th>
-                    <th
-                      className="px-4 py-3 text-left text-sm font-semibold text-gray-700 relative"
-                      style={{ width: "160px" }}
-                    >
-                      Ngày Tạo
-                      <div
-                        onMouseDown={createResizableColumn}
-                        className="absolute right-0 top-0 h-full w-1 cursor-col-resize hover:bg-blue-500"
-                      />
-                    </th>
-                    <th
-                      className="px-4 py-3 text-left text-sm font-semibold text-gray-700"
-                      style={{ width: "160px" }}
-                    >
-                      Ngày Check-in
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-200">
-                  {ticketsLoading &&
-                    Array.from({ length: 8 }).map((_, i) => (
-                      <tr key={`all-skeleton-${i}`} className="animate-pulse">
-                        <td className="px-4 py-3">
-                          <div className="h-4 bg-gray-200 rounded w-40"></div>
-                        </td>
-                        <td className="px-4 py-3">
-                          <div className="h-3 bg-gray-200 rounded w-32"></div>
-                        </td>
-                        <td className="px-4 py-3">
-                          <div className="h-5 bg-gray-200 rounded w-20"></div>
-                        </td>
-                        <td className="px-4 py-3">
-                          <div className="h-4 bg-gray-200 rounded w-44"></div>
-                        </td>
-                        <td className="px-4 py-3">
-                          <div className="h-4 bg-gray-200 rounded w-36"></div>
-                        </td>
-                        <td className="px-4 py-3">
-                          <div className="h-4 bg-gray-200 rounded w-36"></div>
-                        </td>
-                      </tr>
-                    ))}
-                  {!ticketsLoading &&
-                    getFilteredTickets().map((ticket) => (
-                      <tr key={ticket.id} className="hover:bg-gray-50">
-                        <td className="px-4 py-3 text-sm text-gray-800 overflow-hidden text-ellipsis whitespace-nowrap">
-                          {ticket.name}
-                        </td>
-                        <td
-                          className="px-4 py-3 text-xs font-mono text-gray-600 overflow-hidden text-ellipsis whitespace-nowrap"
-                          title={ticket.ticket_id}
-                        >
-                          {ticket.ticket_id.substring(0, 13)}...
-                        </td>
-                        <td className="px-4 py-3 overflow-hidden text-ellipsis whitespace-nowrap">
-                          <span
-                            className={`px-3 py-1 rounded-full text-xs font-semibold ${
-                              ticket.status === "used"
-                                ? "bg-yellow-100 text-yellow-800"
-                                : "bg-green-100 text-green-800"
-                            }`}
-                          >
-                            {ticket.status === "used" ? "ĐÃ DÙNG" : "CHƯA DÙNG"}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3 text-sm text-gray-600 overflow-hidden text-ellipsis whitespace-nowrap">
-                          {ticket.scanned_by_email || "-"}
-                        </td>
-                        <td className="px-4 py-3 text-sm text-gray-600 overflow-hidden text-ellipsis whitespace-nowrap">
-                          {formatDateTime(ticket.created_at)}
-                        </td>
-                        <td className="px-4 py-3 text-sm text-gray-600 overflow-hidden text-ellipsis whitespace-nowrap">
-                          {ticket.checked_in_at
-                            ? formatDateTime(ticket.checked_in_at)
-                            : "-"}
-                        </td>
-                      </tr>
-                    ))}
-                </tbody>
-              </table>
-              {!ticketsLoading && getFilteredTickets().length === 0 && (
-                <div className="text-center py-8 text-gray-500">
-                  Không có vé nào phù hợp
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-
-        {/* Scan Logs */}
-        {showScanLogs && (
-          <div className="bg-white rounded-lg shadow-md p-6">
-            <div className="flex justify-between items-center mb-6">
-              <div>
-                <h2 className="text-2xl font-bold text-gray-800">
-                  Lịch Sử Quét Vé
-                </h2>
-                <p className="text-sm text-gray-600 mt-1">
-                  Xem nhân viên nào quét vé nào
-                </p>
-              </div>
-              <button
-                onClick={() => fetchScanLogs()}
-                disabled={scanLogsLoading}
-                className={`px-4 py-2 rounded-lg transition flex items-center gap-2 ${
-                  scanLogsLoading
-                    ? "bg-blue-300 cursor-not-allowed text-white"
-                    : "bg-blue-600 hover:bg-blue-700 text-white"
-                }`}
-              >
-                {scanLogsLoading ? (
-                  <svg
-                    className="w-4 h-4 animate-spin"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                  >
-                    <circle
-                      className="opacity-25"
-                      cx="12"
-                      cy="12"
-                      r="10"
-                      strokeWidth="4"
-                    ></circle>
-                    <path
-                      className="opacity-75"
-                      d="M4 12a8 8 0 018-8"
-                      strokeWidth="4"
-                    ></path>
-                  </svg>
-                ) : (
-                  <svg
-                    className="w-4 h-4"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
-                    />
-                  </svg>
-                )}
-                {scanLogsLoading ? "Đang tải..." : "Làm Mới"}
-              </button>
-            </div>
-
-            {/* Summary Stats */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-              <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-                <p className="text-sm text-green-600 font-semibold">
-                  Tổng vé đã check-in
-                </p>
-                <p className="text-2xl font-bold text-green-800">
-                  {scanLogs.length}
-                </p>
-              </div>
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                <p className="text-sm text-blue-600 font-semibold">
-                  Tổng vé đã bán
-                </p>
-                <p className="text-2xl font-bold text-blue-800">
-                  {tickets.length}
-                </p>
-              </div>
-            </div>
-            <div className="overflow-x-auto -mx-4 sm:mx-0">
-              <table className="w-full table-fixed min-w-[640px]">
-                <thead className="bg-gray-50 border-b border-gray-200">
-                  <tr>
-                    <th
-                      className="px-4 py-3 text-left text-sm font-semibold text-gray-700 relative"
-                      style={{ width: "200px" }}
-                    >
-                      Tên Khách
-                      <div
-                        onMouseDown={createResizableColumn}
-                        className="absolute right-0 top-0 h-full w-1 cursor-col-resize hover:bg-blue-500"
-                      />
-                    </th>
-                    <th
-                      className="px-4 py-3 text-left text-sm font-semibold text-gray-700 relative"
-                      style={{ width: "150px" }}
-                    >
-                      Mã Vé
-                      <div
-                        onMouseDown={createResizableColumn}
-                        className="absolute right-0 top-0 h-full w-1 cursor-col-resize hover:bg-blue-500"
-                      />
-                    </th>
-                    <th
-                      className="px-4 py-3 text-left text-sm font-semibold text-gray-700 relative"
-                      style={{ width: "200px" }}
-                    >
-                      Quét Bởi
-                      <div
-                        onMouseDown={createResizableColumn}
-                        className="absolute right-0 top-0 h-full w-1 cursor-col-resize hover:bg-blue-500"
-                      />
-                    </th>
-                    <th
-                      className="px-4 py-3 text-left text-sm font-semibold text-gray-700 relative"
-                      style={{ width: "120px" }}
-                    >
-                      Trạng Thái
-                      <div
-                        onMouseDown={createResizableColumn}
-                        className="absolute right-0 top-0 h-full w-1 cursor-col-resize hover:bg-blue-500"
-                      />
-                    </th>
-                    <th
-                      className="px-4 py-3 text-left text-sm font-semibold text-gray-700"
-                      style={{ width: "180px" }}
-                    >
-                      Thời Gian Quét
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-200">
-                  {scanLogsLoading &&
-                    Array.from({ length: 8 }).map((_, i) => (
-                      <tr key={`logs-skeleton-${i}`} className="animate-pulse">
-                        <td className="px-4 py-3">
-                          <div className="h-4 bg-gray-200 rounded w-40"></div>
-                        </td>
-                        <td className="px-4 py-3">
-                          <div className="h-3 bg-gray-200 rounded w-24"></div>
-                        </td>
-                        <td className="px-4 py-3">
-                          <div className="h-4 bg-gray-200 rounded w-44"></div>
-                        </td>
-                        <td className="px-4 py-3">
-                          <div className="h-5 bg-gray-200 rounded w-20"></div>
-                        </td>
-                        <td className="px-4 py-3">
-                          <div className="h-4 bg-gray-200 rounded w-36"></div>
-                        </td>
-                      </tr>
-                    ))}
-                  {!scanLogsLoading &&
-                    scanLogs.map((log) => (
-                      <tr key={log.id} className="hover:bg-gray-50">
-                        <td className="px-4 py-3 text-sm text-gray-800 overflow-hidden text-ellipsis whitespace-nowrap">
-                          {log.tickets.name}
-                        </td>
-                        <td className="px-4 py-3 text-xs font-mono text-gray-600 overflow-hidden text-ellipsis whitespace-nowrap">
-                          {log.ticket_id.substring(0, 8)}...
-                        </td>
-                        <td className="px-4 py-3 text-sm text-gray-700 overflow-hidden text-ellipsis whitespace-nowrap">
-                          {log.scanned_by_email}
-                        </td>
-                        <td className="px-4 py-3 overflow-hidden text-ellipsis whitespace-nowrap">
-                          <span className="px-3 py-1 rounded-full text-xs font-semibold bg-green-100 text-green-800">
-                            ĐÃ DUYỆT
-                          </span>
-                        </td>
-                        <td className="px-4 py-3 text-sm text-gray-600">
-                          {formatDateTime(log.scanned_at)}
-                        </td>
-                      </tr>
-                    ))}
-                </tbody>
-              </table>
-              {!scanLogsLoading && scanLogs.length === 0 && (
-                <div className="text-center py-8 text-gray-500">
-                  Chưa có lịch sử quét
-                </div>
-              )}
-            </div>
-          </div>
-        )}
+        <QRCodeModal
+          showModal={showModal}
+          selectedGuestQRs={selectedGuestQRs}
+          setShowModal={setShowModal}
+          setSelectedGuestQRs={setSelectedGuestQRs}
+          downloadAllQRCodes={downloadAllQRCodes}
+          downloadSingleQR={downloadSingleQR}
+          formatDateTime={formatDateTime}
+        />
       </div>
-
-      {/* QR Codes Modal */}
-      {showModal && selectedGuestQRs.length > 0 && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-start sm:items-center justify-center p-4 z-50 overflow-y-auto">
-          <div className="bg-white rounded-lg p-4 sm:p-8 max-w-4xl w-full my-8">
-            <div className="flex justify-between items-start mb-6">
-              <div>
-                <h3 className="text-2xl font-semibold mb-2 text-gray-800">
-                  Mã QR cho {selectedGuestQRs[0].ticket.name}
-                </h3>
-                <p className="text-sm text-gray-600">
-                  Tổng: {selectedGuestQRs.length} vé
-                </p>
-              </div>
-              <button
-                onClick={downloadAllQRCodes}
-                className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition flex items-center gap-2"
-              >
-                <svg
-                  className="w-5 h-5"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"
-                  />
-                </svg>
-                Tải Tất Cả QR
-              </button>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-h-[70vh] overflow-y-auto">
-              {selectedGuestQRs.map((item, index) => (
-                <div
-                  key={index}
-                  className="border border-gray-200 rounded-lg p-4"
-                >
-                  <div className="flex flex-col items-center">
-                    <div className="mb-3">
-                      <span
-                        className={`px-3 py-1 rounded-full text-xs font-semibold ${
-                          item.ticket.status === "used"
-                            ? "bg-yellow-100 text-yellow-800"
-                            : "bg-green-100 text-green-800"
-                        }`}
-                      >
-                        {item.ticket.status === "used"
-                          ? "ĐÃ DÙNG"
-                          : "CHƯA DÙNG"}
-                      </span>
-                    </div>
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                      src={item.qrCode}
-                      alt="QR Code"
-                      className="w-40 h-40 sm:w-48 sm:h-48 mb-3"
-                    />
-                    <div className="w-full">
-                      <p className="text-xs text-gray-500 mb-1">Mã Vé:</p>
-                      <p className="text-xs font-mono text-gray-600 mb-2 break-all">
-                        {item.ticket.ticket_id}
-                      </p>
-                      {item.ticket.checked_in_at && (
-                        <p className="text-xs text-gray-500">
-                          Check-in lúc:{" "}
-                          {formatDateTime(item.ticket.checked_in_at)}
-                        </p>
-                      )}
-                      <div className="flex gap-2 mt-2">
-                        <button
-                          onClick={() => downloadSingleQR(item, index)}
-                          className="flex-1 bg-green-600 text-white px-3 py-1 rounded text-xs hover:bg-green-700 transition flex items-center justify-center gap-1"
-                        >
-                          <svg
-                            className="w-3 h-3"
-                            fill="none"
-                            stroke="currentColor"
-                            viewBox="0 0 24 24"
-                          >
-                            <path
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              strokeWidth={2}
-                              d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"
-                            />
-                          </svg>
-                          Tải QR
-                        </button>
-                        <button
-                          onClick={() => window.open(item.qrUrl, "_blank")}
-                          className="flex-1 bg-gray-600 text-white px-3 py-1 rounded text-xs hover:bg-gray-700 transition"
-                        >
-                          Mở vé
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            <button
-              onClick={() => {
-                setShowModal(false);
-                setSelectedGuestQRs([]);
-              }}
-              className="mt-6 w-full bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition"
-            >
-              Đóng
-            </button>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

@@ -1,6 +1,7 @@
 import { createClient } from '@/utils/supabase/server';
 import { NextResponse } from 'next/server';
 import QRCode from 'qrcode';
+import { getCachedUserProfile } from '@/utils/profileCache';
 
 export async function POST(request: Request) {
   const supabase = await createClient();
@@ -13,13 +14,10 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('role')
-    .eq('id', user.id)
-    .single();
+  // Use cached profile lookup instead of direct database query
+  const role = await getCachedUserProfile(user.id);
 
-  if (profile?.role !== 'admin') {
+  if (role !== 'admin') {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 
@@ -32,7 +30,7 @@ export async function POST(request: Request) {
 
   // Generate UUID for ticket
   const ticketId = crypto.randomUUID();
-  
+
   // Use provided batch_id or generate new one
   const batchId = batch_id || crypto.randomUUID();
 
@@ -75,13 +73,10 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('role')
-    .eq('id', user.id)
-    .single();
+  // Use cached profile lookup instead of direct database query
+  const role = await getCachedUserProfile(user.id);
 
-  if (profile?.role !== 'admin') {
+  if (role !== 'admin') {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 
@@ -122,14 +117,17 @@ export async function GET(request: Request) {
       totalCount = count;
     }
 
-    return NextResponse.json({ 
-      tickets: tickets || [], 
+    return NextResponse.json({
+      tickets: tickets || [],
       totalCount,
-      hasMore: tickets && tickets.length === limit 
+      hasMore: tickets && tickets.length === limit
+    }, {
+      headers: {
+        'Cache-Control': 'private, max-age=10, stale-while-revalidate=30',
+      },
     });
   } catch (err: any) {
     console.error('Tickets API error:', err);
     return NextResponse.json({ error: err.message || 'Internal server error' }, { status: 500 });
   }
 }
-

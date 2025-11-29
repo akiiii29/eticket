@@ -1,5 +1,6 @@
 import { createClient } from '@/utils/supabase/server';
 import { NextResponse } from 'next/server';
+import { getCachedUserProfile } from '@/utils/profileCache';
 
 export async function POST(request: Request) {
   const supabase = await createClient();
@@ -85,7 +86,7 @@ export async function GET(request: Request) {
 
     // Get unique user IDs to batch fetch emails
     const uniqueUserIds = [...new Set(logs.map(log => log.scanned_by))];
-    
+
     // Batch fetch user emails in a single query
     const { data: userEmails, error: emailError } = await supabase
       .from('auth.users')
@@ -99,14 +100,18 @@ export async function GET(request: Request) {
         logs.map(async (log) => {
           const { data: email } = await supabase
             .rpc('get_user_email', { user_id: log.scanned_by });
-          
+
           return {
             ...log,
             scanned_by_email: email || `User ${log.scanned_by.substring(0, 8)}`,
           };
         })
       );
-      return NextResponse.json({ logs: logsWithEmails });
+      return NextResponse.json({ logs: logsWithEmails }, {
+        headers: {
+          'Cache-Control': 'private, max-age=5, stale-while-revalidate=15',
+        },
+      });
     }
 
     // Create email lookup map
@@ -120,10 +125,13 @@ export async function GET(request: Request) {
       scanned_by_email: emailMap.get(log.scanned_by) || `User ${log.scanned_by.substring(0, 8)}`,
     }));
 
-    return NextResponse.json({ logs: logsWithEmails });
+    return NextResponse.json({ logs: logsWithEmails }, {
+      headers: {
+        'Cache-Control': 'private, max-age=5, stale-while-revalidate=15',
+      },
+    });
   } catch (err: any) {
     console.error('Scan logs API error:', err);
     return NextResponse.json({ error: err.message || 'Internal server error' }, { status: 500 });
   }
 }
-
